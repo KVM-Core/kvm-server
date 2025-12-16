@@ -27,7 +27,7 @@
 #if !defined(WITH_JSONC)
 #error "This file must only be compiled when json-c is enabled"
 #endif
-#include <json.h>
+#include <json-c/json.h>
 
 #if JSON_C_MAJOR_VERSION == 0
 #if JSON_C_MINOR_VERSION < 14

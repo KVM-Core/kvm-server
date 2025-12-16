@@ -1,0 +1,21 @@
+rm -rf build
+mkdir build
+cmake -GNinja \
+-DWITH_PLATFORM_SERVER=ON \
+-DWITH_SERVER=ON \
+-DWITH_SAMPLE=ON \
+-DWITH_BLACKBOX=ON \
+-DWITH_SHADOW=OFF \
+-DWITH_SHADOW_X11=OFF \
+-DWITH_PCSC=OFF \
+-DWITH_FFMPEG=OFF \
+-DWITH_KRB5=OFF \
+-DWITH_OPENSSL=ON \
+-DWITH_SWSCALE=OFF \
+-DWITH_CUPS=OFF \
+-DWITH_FUSE=OFF \
+-DWITH_CLIENT=OFF \
+-DWITH_CLIENT_CHANNELS=ON \
+-S /home/developer/sandbox/git_delete/kvm-server \
+-B build
+cmake --build ./build
