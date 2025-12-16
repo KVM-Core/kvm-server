@@ -153,7 +153,6 @@ set(${MODULE_PREFIX}_SRCS
     timer.h
 
     connection_manager.c
-    connection_manager.h
 )
 
 set(${MODULE_PREFIX}_SRCS ${${MODULE_PREFIX}_SRCS} ${${MODULE_PREFIX}_GATEWAY_SRCS})

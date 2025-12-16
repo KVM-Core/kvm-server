@@ -30,9 +30,9 @@
 
 //#define MEMORY_LEAK_DEBUG /* turn this on to see interactive allocation and de-allocation, prints to command line so heavy impact on performance */
 
-#ifdef MEMORY_LEAK_DEBUG
+// #ifdef MEMORY_LEAK_DEBUG
 	#define MEMORY_ALLOCATION_MONITOR
-#endif
+// #endif
 
 FREERDP_API void* xmalloc(size_t size,const char * function_name);
 FREERDP_API void* xzalloc(size_t size,const char * function_name);

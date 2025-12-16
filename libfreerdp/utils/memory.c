@@ -114,7 +114,7 @@ void *smartcalloc(unsigned long bytes, const char *file, int line, char fill)
    data += MARGIN;
    temp->data = data;
    //corrib_syslog(LOG_DEBUG,"temp->function_reference = %p, file = %p\n",temp->function_reference,file);
-   su_strlcpy(temp->function_reference,file,250);
+   //////////////////////////////////////////////////// ARPM: uncomment!! su_strlcpy(temp->function_reference,file,250);
    temp->allocated_at = sh_log_get_mstime();
 #ifdef FILL_MEMORY
    memset(data, fill, bytes);

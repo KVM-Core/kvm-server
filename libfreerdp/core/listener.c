@@ -546,6 +546,24 @@ freerdp_listener* freerdp_listener_new(void)
 
 	listener->instance = instance;
 	instance->listener = (void*)listener;
+	// Black Box (begin)
+	//---------------- Setup connection manager ------------------------
+	instance->connection_manager = connection_manager_new(NULL);
+	instance->listener_cm_queue = eq_queue_new(__func__);
+	if (instance->listener_cm_queue)
+	{
+		free(instance->connection_manager);
+		free(instance);
+		return NULL;
+	}
+
+    eq_set_name(instance->listener_cm_queue, "listener_cm_queue");
+	// connection_manager_enable_debug(instance->connection_manager); //uncomment for debug enable
+	connection_manager_enable_performance_analysis(instance->connection_manager);
+	connection_manager_set_queues(instance->connection_manager, instance->listener_cm_queue);
+	connection_manager_run(instance->connection_manager);
+	// Black Box (end)
+
 	return instance;
 }
 

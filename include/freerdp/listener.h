@@ -24,6 +24,9 @@
 #include <freerdp/types.h>
 #include <freerdp/settings.h>
 #include <freerdp/peer.h>
+#include <freerdp/connection_manager.h>
+
+#include <freerdp/utils/event_queue.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -72,6 +75,10 @@ extern "C"
 		psListenerOpenFromSocket OpenFromSocket;
 
 		psListenerCheckFileDescriptor CheckPeerAcceptRestrictions;
+		// Black Box (begin)
+		cmContext * connection_manager;
+		eqEventQueue* listener_cm_queue;
+		// Black Box (end)
 	};
 
 	FREERDP_API void freerdp_listener_free(freerdp_listener* instance);

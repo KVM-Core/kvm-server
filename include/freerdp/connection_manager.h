@@ -19,6 +19,114 @@
 #ifndef __CONNECTION_MANAGER_H
 #define __CONNECTION_MANAGER_H
 
+#include <sys/socket.h>
+#include <linux/netlink.h>
+#include <freerdp/peer.h>
+#include <freerdp/api.h>
+#include <freerdp/types.h>
+#include <freerdp/settings.h>
+#include <freerdp/peer.h>
+#include <freerdp/utils/event_queue.h>
+
+typedef struct connection_manager_context cmContext;
+
+struct connection_manager_context
+{
+	
+	//-------------------------References------------------------
+	//-----------------------------------------------------------
+	// hwManagerContext * hm_context;
+
+	//--------------------------Callbacks-------------------------
+	//-------------------------------------------------------------
+	// cmPeerAccepted PeerAccepted; //we call this to initialise the peer
+	// cmMulticastPeerAccepted mPeerAccepted; //we call this to initialise the mpeer
+
+	//---------------------- Peer List ------------------------------
+	//---------------------------------------------------------------
+	// LIST_HEAD(peer_list, peer_node) peer_list_head;
+	// TAILQ_HEAD(peer_wait_queue, peer_wait_node) peer_wait_queue_head;
+
+	//---------------------------------Queues-----------------------
+	//-------------------------------------------------------------
+	eqEventQueue* hm_cm_queue; //input queue from hardware manager
+	eqEventQueue* cm_hm_queue; //output queue to hardware manager
+	eqEventQueue* listener_queue; //input queue from the listner, used to communicate new connections and end events
+	eqEventQueue* peer_cm_queue; //input queue from the various, all peers can write to this queue
+
+	//-----------------------------------Threads----------------------
+	//-------------------------------------------------------------
+	pthread_t main_thread;
+	// threadState main_thread_state;
+	//----------------------------------- status ----------------------
+	//-------------------------------------------------------------
+	// exitState hm_exit_state;
+	char exit_info[255];
+	UINT32 client_id_counter;
+
+	//------------------------------------ Debug and Profiling ----------------
+	//-------------------------------------------------------------------------
+	BOOL performance_analysis;
+	BOOL debug_enabled;
+	// esContext * es_context;
+
+	//--------------------------------------Statistics--------------------
+	//--------------------------------------------------------------------
+	UINT32 last_surface_command_available_h1;
+	UINT32 last_surface_command_available_h2;
+	UINT32 last_audio_command_available;
+	UINT32 last_mouse_event;
+
+	UINT32 succesful_logins;
+	UINT32 failed_logins;
+	UINT32 previous_interval_time;
+	UINT32 connection_id_pool;
+	UINT32 statistics_counter;
+
+	//-------------------------------------- Locking -------------------------------
+	//------------------------------------------------------------------------------
+	pthread_mutex_t mutex;
+
+
+	//--------------------------------------Multicast ------------------------------
+	//------------------------------------------------------------------------------
+	// CONNECTION_MODE cm_operating_mode; //Indicates the type of connection we are supporting unicast, multicast etc
+	// COMPRESSION_MODE cm_compression_mode;
+	// SERVER_TECHNOLOGY_TYPE server_technology_type;
+	BOOL preemption;
+	// m_peer * multicast_peer_client;
+	UINT32 mouse_keyboard_timer;
+	BOOL mouse_keyboard_available;
+	int controlling_peer_id;
+	// UINT32 video_slave_cid_pool[MAX_SHARED_CONNECTIONS][MAX_CLOUMNS]; // [cid value][availability]
+	// UINT32 audio_slave_cid_pool[MAX_SHARED_CONNECTIONS][MAX_CLOUMNS]; // [cid value][availability]
+
+	BOOL video_municast_running;
+	BOOL audio_municast_running;
+	BOOL video_multicast_running;
+	BOOL audio_multicast_running;
+	int multicast_last_rtt;
+	int audio_master_mu_channel;
+	freerdp_peer * connecting_client;
+	//-------------------------------------Multi Unicast----------------------------
+	//------------------------------------------------------------------------------
+
+	// UINT32 video_channels[MAX_SHARED_CONNECTIONS];
+	// UINT32 audio_channels[MAX_SHARED_CONNECTIONS];
+	// BOOL resolution_change_needed[MAX_HEAD];
+
+	//------------------------------------- Unicast----------------------------
+	//------------------------------------------------------------------------------
+	char loggedin_user[32];
+	UINT32 mouse_keyboard_timeout;
+    BOOL enable_cm_heartbeats;
+
+	//------------------------------------- Netlink----------------------------
+	//------------------------------------------------------------------------------
+	int netlink_sock_fd;
+};
+
+
 #if 0
 
 #include <sys/socket.h>
