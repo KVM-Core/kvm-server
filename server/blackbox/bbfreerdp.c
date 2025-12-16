@@ -524,7 +524,7 @@ static BOOL test_sleep_tsdiff(UINT32* old_sec, UINT32* old_usec, UINT32 new_sec,
 	return TRUE;
 }
 
-static BOOL tf_peer_dump_rfx(freerdp_peer* client)
+static BOOL bb_peer_dump_rfx(freerdp_peer* client)
 {
 	BOOL rc = FALSE;
 	wStream* s = NULL;
@@ -657,7 +657,7 @@ fail:
 	return 0;
 }
 
-static BOOL tf_peer_post_connect(freerdp_peer* client)
+static BOOL bb_peer_post_connect(freerdp_peer* client)
 {
 	testPeerContext* context = NULL;
 	rdpSettings* settings = NULL;
@@ -768,7 +768,7 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
 	return TRUE;
 }
 
-static BOOL tf_peer_activate(freerdp_peer* client)
+static BOOL bb_peer_activate(freerdp_peer* client)
 {
 	testPeerContext* context = NULL;
 	rdpSettings* settings = NULL;
@@ -796,7 +796,7 @@ static BOOL tf_peer_activate(freerdp_peer* client)
 		if (!freerdp_settings_set_bool(settings, FreeRDP_DumpRemoteFx, TRUE))
 			return FALSE;
 
-		if (!tf_peer_dump_rfx(client))
+		if (!bb_peer_dump_rfx(client))
 			return FALSE;
 	}
 	else
@@ -815,7 +815,7 @@ static BOOL tf_peer_activate(freerdp_peer* client)
 	return TRUE;
 }
 
-static BOOL tf_peer_synchronize_event(rdpInput* input, UINT32 flags)
+static BOOL bb_peer_synchronize_event(rdpInput* input, UINT32 flags)
 {
 	WINPR_UNUSED(input);
 	WINPR_ASSERT(input);
@@ -823,7 +823,7 @@ static BOOL tf_peer_synchronize_event(rdpInput* input, UINT32 flags)
 	return TRUE;
 }
 
-static BOOL tf_peer_keyboard_event(rdpInput* input, UINT16 flags, UINT8 code)
+static BOOL bb_peer_keyboard_event(rdpInput* input, UINT16 flags, UINT8 code)
 {
 	freerdp_peer* client = NULL;
 	rdpUpdate* update = NULL;
@@ -910,7 +910,7 @@ static BOOL tf_peer_keyboard_event(rdpInput* input, UINT16 flags, UINT8 code)
 	return TRUE;
 }
 
-static BOOL tf_peer_unicode_keyboard_event(rdpInput* input, UINT16 flags, UINT16 code)
+static BOOL bb_peer_unicode_keyboard_event(rdpInput* input, UINT16 flags, UINT16 code)
 {
 	WINPR_UNUSED(input);
 	WINPR_ASSERT(input);
@@ -921,7 +921,7 @@ static BOOL tf_peer_unicode_keyboard_event(rdpInput* input, UINT16 flags, UINT16
 	return TRUE;
 }
 
-static BOOL tf_peer_mouse_event(rdpInput* input, UINT16 flags, UINT16 x, UINT16 y)
+static BOOL bb_peer_mouse_event(rdpInput* input, UINT16 flags, UINT16 x, UINT16 y)
 {
 	WINPR_UNUSED(flags);
 	WINPR_ASSERT(input);
@@ -944,7 +944,7 @@ static UINT32 add(UINT32 old, UINT32 max, INT16 diff)
 	return WINPR_ASSERTING_INT_CAST(uint32_t, val);
 }
 
-static BOOL tf_peer_rel_mouse_event(rdpInput* input, UINT16 flags, INT16 xDelta, INT16 yDelta)
+static BOOL bb_peer_rel_mouse_event(rdpInput* input, UINT16 flags, INT16 xDelta, INT16 yDelta)
 {
 	WINPR_UNUSED(flags);
 	WINPR_ASSERT(input);
@@ -967,7 +967,7 @@ static BOOL tf_peer_rel_mouse_event(rdpInput* input, UINT16 flags, INT16 xDelta,
 	return TRUE;
 }
 
-static BOOL tf_peer_extended_mouse_event(rdpInput* input, UINT16 flags, UINT16 x, UINT16 y)
+static BOOL bb_peer_extended_mouse_event(rdpInput* input, UINT16 flags, UINT16 x, UINT16 y)
 {
 	WINPR_UNUSED(flags);
 	WINPR_ASSERT(input);
@@ -981,7 +981,7 @@ static BOOL tf_peer_extended_mouse_event(rdpInput* input, UINT16 flags, UINT16 x
 	return TRUE;
 }
 
-static BOOL tf_peer_refresh_rect(rdpContext* context, BYTE count, const RECTANGLE_16* areas)
+static BOOL bb_peer_refresh_rect(rdpContext* context, BYTE count, const RECTANGLE_16* areas)
 {
 	WINPR_UNUSED(context);
 	WINPR_ASSERT(context);
@@ -998,7 +998,7 @@ static BOOL tf_peer_refresh_rect(rdpContext* context, BYTE count, const RECTANGL
 	return TRUE;
 }
 
-static BOOL tf_peer_suppress_output(rdpContext* context, BYTE allow, const RECTANGLE_16* area)
+static BOOL bb_peer_suppress_output(rdpContext* context, BYTE allow, const RECTANGLE_16* area)
 {
 	WINPR_UNUSED(context);
 
@@ -1080,7 +1080,7 @@ fail:
 	return -1;
 }
 
-static DWORD WINAPI test_peer_mainloop(LPVOID arg)
+static DWORD WINAPI bb_peer_mainloop(LPVOID arg)
 {
 	BOOL rc = 0;
 	DWORD error = CHANNEL_RC_OK;
@@ -1151,25 +1151,25 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 	if (!freerdp_settings_set_bool(settings, FreeRDP_HasRelativeMouseEvent, TRUE))
 		goto fail;
 
-	client->PostConnect = tf_peer_post_connect;
-	client->Activate = tf_peer_activate;
+	client->PostConnect = bb_peer_post_connect;
+	client->Activate = bb_peer_activate;
 
 	WINPR_ASSERT(client->context);
 	input = client->context->input;
 	WINPR_ASSERT(input);
 
-	input->SynchronizeEvent = tf_peer_synchronize_event;
-	input->KeyboardEvent = tf_peer_keyboard_event;
-	input->UnicodeKeyboardEvent = tf_peer_unicode_keyboard_event;
-	input->MouseEvent = tf_peer_mouse_event;
-	input->RelMouseEvent = tf_peer_rel_mouse_event;
-	input->ExtendedMouseEvent = tf_peer_extended_mouse_event;
+	input->SynchronizeEvent = bb_peer_synchronize_event;
+	input->KeyboardEvent = bb_peer_keyboard_event;
+	input->UnicodeKeyboardEvent = bb_peer_unicode_keyboard_event;
+	input->MouseEvent = bb_peer_mouse_event;
+	input->RelMouseEvent = bb_peer_rel_mouse_event;
+	input->ExtendedMouseEvent = bb_peer_extended_mouse_event;
 
 	update = client->context->update;
 	WINPR_ASSERT(update);
 
-	update->RefreshRect = tf_peer_refresh_rect;
-	update->SuppressOutput = tf_peer_suppress_output;
+	update->RefreshRect = bb_peer_refresh_rect;
+	update->SuppressOutput = bb_peer_suppress_output;
 	if (!freerdp_settings_set_uint32(settings, FreeRDP_MultifragMaxRequestSize,
 	                                 0xFFFFFF /* FIXME */))
 		goto fail;
@@ -1280,7 +1280,7 @@ fail:
 	return error;
 }
 
-static BOOL test_peer_accepted(freerdp_listener* instance, freerdp_peer* client)
+static BOOL bb_peer_accepted(freerdp_listener* instance, freerdp_peer* client)
 {
 	HANDLE hThread = NULL;
 
@@ -1292,14 +1292,14 @@ static BOOL test_peer_accepted(freerdp_listener* instance, freerdp_peer* client)
 	struct server_info* info = instance->info;
 	client->ContextExtra = info;
 
-	if (!(hThread = CreateThread(NULL, 0, test_peer_mainloop, (void*)client, 0, NULL)))
+	if (!(hThread = CreateThread(NULL, 0, bb_peer_mainloop, (void*)client, 0, NULL)))
 		return FALSE;
 
 	(void)CloseHandle(hThread);
 	return TRUE;
 }
 
-static void test_server_mainloop(freerdp_listener* instance)
+static void bb_server_mainloop(freerdp_listener* instance)
 {
 	HANDLE handles[32] = { 0 };
 	DWORD count = 0;
@@ -1442,7 +1442,7 @@ int main(int argc, char* argv[])
 		info.key = "server.key";
 
 	instance->info = (void*)&info;
-	instance->PeerAccepted = test_peer_accepted;
+	instance->PeerAccepted = bb_peer_accepted;
 
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
 		goto fail;
@@ -1469,7 +1469,7 @@ int main(int argc, char* argv[])
 	{
 		/* Entering the server main loop. In a real server the listener can be run in its own
 		 * thread. */
-		test_server_mainloop(instance);
+		bb_server_mainloop(instance);
 	}
 
 	rc = 0;

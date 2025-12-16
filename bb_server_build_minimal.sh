@@ -1,5 +1,10 @@
-rm -rf build
-mkdir build
+SOURCE_DIR=.
+BUILD_DIR=build
+
+rm -rf $BUILD_DIR
+
+mkdir $BUILD_DIR
+
 cmake -GNinja \
 -DWITH_PLATFORM_SERVER=ON \
 -DWITH_SERVER=ON \
@@ -16,6 +21,7 @@ cmake -GNinja \
 -DWITH_FUSE=OFF \
 -DWITH_CLIENT=OFF \
 -DWITH_CLIENT_CHANNELS=ON \
--S /home/developer/sandbox/git_delete/kvm-server \
--B build
-cmake --build ./build
+-S $SOURCE_DIR \
+-B $BUILD_DIR
+
+cmake --build $BUILD_DIR

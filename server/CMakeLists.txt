@@ -17,6 +17,7 @@
 
 # Servers
 option(WITH_SHADOW "Compile with shadow server" ON)
+option(WITH_BLACKBOX "Compile with blackbox server" ON)
 option(WITH_PROXY "Compile with proxy server" ON)
 option(WITH_PLATFORM_SERVER "Compile with platform server" ON)
 
@@ -34,6 +35,10 @@ endif()
 
 if(WITH_SAMPLE)
   add_subdirectory(Sample)
+endif()
+
+if(WITH_BLACKBOX)
+  add_subdirectory(blackbox)
 endif()
 
 if(WITH_PLATFORM_SERVER)
