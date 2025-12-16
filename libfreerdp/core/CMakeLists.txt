@@ -151,6 +151,9 @@ set(${MODULE_PREFIX}_SRCS
     aad.h
     timer.c
     timer.h
+
+    connection_manager.c
+    connection_manager.h
 )
 
 set(${MODULE_PREFIX}_SRCS ${${MODULE_PREFIX}_SRCS} ${${MODULE_PREFIX}_GATEWAY_SRCS})
@@ -164,6 +167,12 @@ endif()
 
 freerdp_library_add(${OPENSSL_LIBRARIES})
 freerdp_pc_add_requires_private("libssl")
+
+# Black Box (begin)
+  find_library(LOGGING_LIBRARY logging HINTS ${SYSROOT_LOCATION}/usr/lib)
+  freerdp_library_add(${LOGGING_LIBRARY})
+  freerdp_pc_add_requires_private("liblogging")
+# Black Box (end)
 
 if(BUILD_TESTING_INTERNAL OR BUILD_TESTING)
   add_subdirectory(test)

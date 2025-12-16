@@ -29,6 +29,8 @@ set(SRCS
     bb_encomsp.h
 )
 
+find_library(LOGGING_LIBRARY logging REQUIRED)
+
 if(CHANNEL_AINPUT_SERVER)
   list(APPEND SRCS bb_ainput.c bb_ainput.h)
 endif()
@@ -55,7 +57,7 @@ addtargetwithresourcefile(${MODULE_NAME} TRUE "${FREERDP_VERSION}" SRCS)
 
 target_compile_definitions(${MODULE_NAME} PRIVATE SAMPLE_RESOURCE_ROOT="${SAMPLE_RESOURCE_ROOT}")
 list(APPEND LIBS freerdp-server)
-list(APPEND LIBS winpr freerdp)
+list(APPEND LIBS winpr freerdp logging)
 
 target_link_libraries(${MODULE_NAME} ${LIBS})
 installwithrpath(TARGETS ${MODULE_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT server)

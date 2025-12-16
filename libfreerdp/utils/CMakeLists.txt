@@ -37,7 +37,14 @@ set(${MODULE_PREFIX}_SRCS
     smartcard_call.c
     stopwatch.c
     http.c
+
+    event_queue.c
+    sh_logger.c
+    memory.c
+    file.c
 )
+
+find_library(LOGGING_LIBRARY logging REQUIRED)
 
 freerdp_module_add(${${MODULE_PREFIX}_SRCS})
 

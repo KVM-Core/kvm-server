@@ -858,6 +858,15 @@ struct rdp_settings
 	 * The zone below this point is ABI unstable, and
 	 * is therefore potentially subject to ABI breakage.
 	 */
+	
+	/**
+	 * Black Box
+	 */
+	SETTINGS_DEPRECATED(ALIGN64 char* home_path); /* 6000 */
+	SETTINGS_DEPRECATED(ALIGN64 char* config_path); /* 6001 */
+	SETTINGS_DEPRECATED(ALIGN64 char* current_path); /* 6002 */
+	SETTINGS_DEPRECATED(ALIGN64 char* development_path); /* 6003 */
+	SETTINGS_DEPRECATED(ALIGN64 BOOL development_mode); /* 6004 */
 };
 
 #ifdef __cplusplus
