@@ -29,6 +29,10 @@
 #include <winpr/windows.h>
 #include <freerdp/log.h>
 
+#include <corrib_logger.h>
+
+#include "core_event.h"
+
 #ifndef _WIN32
 #include <netdb.h>
 #include <unistd.h>
@@ -511,8 +515,35 @@ static BOOL freerdp_listener_check_fds(freerdp_listener* instance)
 			return FALSE;
 		}
 
-		if (!freerdp_check_and_create_client(instance, (int)peer_sockfd, &peer_addr))
-			return FALSE;
+		// FreeRDP peer creation
+		// if (!freerdp_check_and_create_client(instance, (int)peer_sockfd, &peer_addr))
+		// 	return FALSE;
+
+		{ //Black Box
+			void* sin_addr;
+			char hostname[50];
+
+			sin_addr = NULL;
+
+			if (peer_addr.ss_family == AF_INET) {
+				sin_addr = &(((struct sockaddr_in*) &peer_addr)->sin_addr);
+			}
+			else if (peer_addr.ss_family == AF_INET6) {
+				sin_addr = &(((struct sockaddr_in6*) &peer_addr)->sin6_addr);
+			}
+
+			if (sin_addr)
+			{
+				inet_ntop(peer_addr.ss_family, sin_addr, hostname, 50);				
+			}
+
+			EventNewConnection * new_connection_event = event_new_connection_new(peer_sockfd,hostname);
+			// if(instance->connection_manager->performance_analysis)
+			// 	new_connection_event->send_time = sh_log_get_mstime();
+			corrib_syslog(LOG_NOTICE, "%s: Got client %s\n", __func__, hostname);
+			eq_push(instance->listener_cm_queue,(eqEvent *)new_connection_event);
+		}
+
 	}
 
 	return TRUE;
@@ -541,18 +572,16 @@ freerdp_listener* freerdp_listener_new(void)
 
 	listener->instance = instance;
 	instance->listener = (void*)listener;
-	// //---------------- Setup connection manager ------------------------
-printf("%s(): %d\n", __func__, __LINE__);
+	//---------------- Setup connection manager ------------------------
 	instance->listener_cm_queue = eq_queue_new(__func__);
 	if (!instance->listener_cm_queue)
 		goto queue_no_mem;
-printf("%s(): %d\n", __func__, __LINE__);
 	eq_set_name(instance->listener_cm_queue, "listener_cm_queue");
-printf("%s(): %d\n", __func__, __LINE__);
+
 	instance->connection_manager = connection_manager_new();
 	if (!instance->connection_manager)
 		goto manager_no_mem;
-printf("%s(): %d\n", __func__, __LINE__);
+
 	// connection_manager_enable_debug(instance->connection_manager); //uncomment for debug enable
 	// connection_manager_enable_performance_analysis(instance->connection_manager);
 	connection_manager_set_queues(instance->connection_manager, instance->listener_cm_queue);
@@ -565,7 +594,6 @@ queue_no_mem:
 listener_no_mem:
 	free(instance);
 instance_no_mem:
-printf("%s(): %d\n", __func__, __LINE__);
 	return NULL;
 }
 
@@ -573,6 +601,8 @@ void freerdp_listener_free(freerdp_listener* instance)
 {
 	if (instance)
 	{
+		eq_queue_free(instance->listener_cm_queue, __func__);
+		connection_manager_free(instance->connection_manager);
 		free(instance->listener);
 		free(instance);
 	}

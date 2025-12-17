@@ -27,7 +27,57 @@
 #include <freerdp/settings.h>
 #include <freerdp/peer.h>
 #include <freerdp/utils/event_queue.h>
+#include <freerdp/utils/queue.h>
 #include <freerdp/hardware_manager.h>
+#include <textfields.h>
+
+//#define SHARED_MODE_DEBUG
+#define MAX_CLOUMNS 2	//[cid value][availability
+#define MAX_SHARED_CONNECTIONS		8
+#define VIDEO_MASTER_CID  		0x12
+#define AUDIO_MASTER_CID  		0x1B
+#define STARTING_MULTICAST_VIDEO_CID  	0x13
+#define STARTING_MULTICAST_AUDIO_CID  	0x1C
+#define STARTING_MUNICAST_VIDEO_CID  	0x02
+#define STARTING_MUNICAST_AUDIO_CID  	0x0A
+
+#define CM_DEFAULT_INTERVAL_PERIOD 1
+
+/* Netlink socket */
+#define NETLINK_USER 31
+#define NLINK_MSG_LEN 1024
+
+struct nl_message {
+	int cid;
+	int event_id;
+};
+
+typedef struct connection_manager_context cmContext;
+
+// typedef void (*cmPeerAccepted)(cmContext * cm_context, freerdp_peer* client);
+// typedef void (*cmMulticastPeerAccepted)(cmContext * cm_context, m_peer* client);
+
+typedef struct peer_node peerNode;
+
+typedef struct peer_wait_node peerWaitNode;
+
+//typedef enum {UNICAST, MULTICAST, MUNICAST} operating_mode;
+typedef enum {VIDEO_MODE, AUDIO_MODE, AV_MODE} av_mode;
+
+struct peer_node
+{
+	freerdp_peer* client;
+	int id;
+	LIST_ENTRY(peer_node) entries;      /* List. */
+};
+
+struct peer_wait_node
+{
+	int id;
+	char hostname[50]; //the hostname of the connection
+	int fd;
+	TAILQ_ENTRY(peer_wait_node) entries; /* Queue. */
+};
 
 typedef struct connection_manager_context cmContext;
 
@@ -45,8 +95,8 @@ struct connection_manager_context
 
 	//---------------------- Peer List ------------------------------
 	//---------------------------------------------------------------
-	// LIST_HEAD(peer_list, peer_node) peer_list_head;
-	// TAILQ_HEAD(peer_wait_queue, peer_wait_node) peer_wait_queue_head;
+	LIST_HEAD(peer_list, peer_node) peer_list_head;
+	TAILQ_HEAD(peer_wait_queue, peer_wait_node) peer_wait_queue_head;
 
 	//---------------------------------Queues-----------------------
 	//-------------------------------------------------------------
@@ -91,16 +141,16 @@ struct connection_manager_context
 
 	//--------------------------------------Multicast ------------------------------
 	//------------------------------------------------------------------------------
-	// CONNECTION_MODE cm_operating_mode; //Indicates the type of connection we are supporting unicast, multicast etc
-	// COMPRESSION_MODE cm_compression_mode;
-	// SERVER_TECHNOLOGY_TYPE server_technology_type;
+	CONNECTION_MODE cm_operating_mode; //Indicates the type of connection we are supporting unicast, multicast etc
+	COMPRESSION_MODE cm_compression_mode;
+	SERVER_TECHNOLOGY_TYPE server_technology_type;
 	BOOL preemption;
 	// m_peer * multicast_peer_client;
 	UINT32 mouse_keyboard_timer;
 	BOOL mouse_keyboard_available;
 	int controlling_peer_id;
-	// UINT32 video_slave_cid_pool[MAX_SHARED_CONNECTIONS][MAX_CLOUMNS]; // [cid value][availability]
-	// UINT32 audio_slave_cid_pool[MAX_SHARED_CONNECTIONS][MAX_CLOUMNS]; // [cid value][availability]
+	UINT32 video_slave_cid_pool[MAX_SHARED_CONNECTIONS][MAX_CLOUMNS]; // [cid value][availability]
+	UINT32 audio_slave_cid_pool[MAX_SHARED_CONNECTIONS][MAX_CLOUMNS]; // [cid value][availability]
 
 	BOOL video_municast_running;
 	BOOL audio_municast_running;
@@ -112,9 +162,9 @@ struct connection_manager_context
 	//-------------------------------------Multi Unicast----------------------------
 	//------------------------------------------------------------------------------
 
-	// UINT32 video_channels[MAX_SHARED_CONNECTIONS];
-	// UINT32 audio_channels[MAX_SHARED_CONNECTIONS];
-	// BOOL resolution_change_needed[MAX_HEAD];
+	UINT32 video_channels[MAX_SHARED_CONNECTIONS];
+	UINT32 audio_channels[MAX_SHARED_CONNECTIONS];
+	BOOL resolution_change_needed[MAX_HEAD];
 
 	//------------------------------------- Unicast----------------------------
 	//------------------------------------------------------------------------------

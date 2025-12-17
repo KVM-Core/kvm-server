@@ -297,7 +297,7 @@ void hw_manager_free(hwManagerContext* context);
 // void hw_manager_check_for_capture_rate_config(hwManagerContext * context);
 // void hw_manager_signal_new_connection(hwManagerContext * context);
 // void hw_manager_detect_resolution(hwManagerContext * context, int head);
-// void hw_manager_set_queues(hwManagerContext * context,eqEventQueue* hm_cm_queue,eqEventQueue* cm_hm_queue);
+void hw_manager_set_queues(hwManagerContext * context,eqEventQueue* hm_cm_queue,eqEventQueue* cm_hm_queue);
 // void hw_manager_run(hwManagerContext * context);
 // void hw_manager_enable_performance_analysis(hwManagerContext * hm_context);
 // void hw_manager_enable_debug(hwManagerContext * hm_context);

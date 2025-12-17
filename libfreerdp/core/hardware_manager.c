@@ -140,6 +140,13 @@ void hw_manager_free(hwManagerContext* context)
 // 	xfree(context,__func__);
 }
 
+void hw_manager_set_queues(hwManagerContext* context, eqEventQueue* hm_cm_queue, eqEventQueue* cm_hm_queue)
+{
+	//create  event queue FIXME, who should create these, perhaps the owner CM
+	context->hm_cm_queue = hm_cm_queue;
+	context->cm_hm_queue = cm_hm_queue;
+}
+
 #if 0
 #include <freerdp/hardware_manager.h>
 #include <freerdp/bitops.h>

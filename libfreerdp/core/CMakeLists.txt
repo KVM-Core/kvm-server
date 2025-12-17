@@ -152,6 +152,8 @@ set(${MODULE_PREFIX}_SRCS
     timer.c
     timer.h
 
+    core_event.c
+    core_event.h
     connection_manager.c
     hardware_manager.c
 )
@@ -172,6 +174,10 @@ freerdp_pc_add_requires_private("libssl")
   find_library(LOGGING_LIBRARY logging HINTS ${SYSROOT_LOCATION}/usr/lib)
   freerdp_library_add(${LOGGING_LIBRARY})
   freerdp_pc_add_requires_private("liblogging")
+
+  find_library(SYSTEM_LIBRARY systemutils HINTS ${SYSROOT_LOCATION}/usr/lib)
+  freerdp_library_add(${SYSTEM_LIBRARY})
+  freerdp_pc_add_requires_private("libsystemutils")
 # Black Box (end)
 
 if(BUILD_TESTING_INTERNAL OR BUILD_TESTING)

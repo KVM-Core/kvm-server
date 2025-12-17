@@ -38,7 +38,20 @@
 #include <pthread.h>
 
 #include <freerdp/utils/memory.h>
+#include <freerdp/utils/file.h>
 #include <freerdp/connection_manager.h>
+#include <textfields.h>
+#include <system_avae.h>
+#include <system_toe.h>
+
+enum cm_av_channel_state {
+	CM_AV_CHANNEL_UNUSED = 0,
+	CM_AV_CHANNEL_ALLOCATED,
+	CM_AV_CHANNEL_LISTENING,
+	CM_AV_CHANNEL_ACTIVE,
+};
+
+static void connection_manager_init_slave_cid_pool(cmContext * cm_context);
 
 cmContext* connection_manager_new(void)
 {
@@ -49,7 +62,6 @@ cmContext* connection_manager_new(void)
 	cm_context->hm_context = hw_manager_new(); //we create the hardware manager and store a reference
 	if (!cm_context->hm_context)
 		goto hm_alloc_no_mem;
-
 
 	cm_context->hm_cm_queue = eq_queue_new(__func__);
 	if (!cm_context->hm_cm_queue)
@@ -66,6 +78,36 @@ cmContext* connection_manager_new(void)
 		goto peer_cm_queue_no_mem;
 	eq_set_name(cm_context->peer_cm_queue, "peer_cm_queue");
 
+	su_get_tx_mouse_keyboard_timeout(&cm_context->mouse_keyboard_timeout);
+
+	cm_context->mouse_keyboard_available = true;
+	cm_context->controlling_peer_id = -1;
+	cm_context->cm_compression_mode = UNKNOWN_COMPRESSION;
+
+#if defined(_EMERALD4K)
+	cm_context->server_technology_type = EMERALD_4K_SERVER;
+#else
+	cm_context->server_technology_type = EMERALD_2K_SERVER;
+#endif
+	cm_context->preemption = false;
+	cm_context->client_id_counter = 1; //0 is reserved for unallocated
+
+	cm_context->cm_operating_mode = UNKNOWN_CONNECTION_MODE;
+	//cm_context->cm_operating_mode = PREEMPTIVE;
+	// cm_context->multicast_peer_client = NULL;
+	memset(cm_context->audio_channels, CM_AV_CHANNEL_UNUSED, MAX_SHARED_CONNECTIONS);
+	memset(cm_context->video_channels, CM_AV_CHANNEL_UNUSED, MAX_SHARED_CONNECTIONS);
+	cm_context->resolution_change_needed[HEAD_1] = false;
+	cm_context->resolution_change_needed[HEAD_2] = false;
+	cm_context->statistics_counter = 60;
+
+	//corrib_syslog(LOG_DEBUG,"%s: cm_context->peer_cm_queue = %p\n",__func__,cm_context->peer_cm_queue);
+    LIST_INIT(&(cm_context->peer_list_head));                       /* Initialize the peer list. */
+    TAILQ_INIT(&(cm_context->peer_wait_queue_head));   //for peers waiting to join
+    pthread_mutex_init(&(cm_context->mutex), NULL);
+	cm_context->performance_analysis = false;
+	hw_manager_set_queues(cm_context->hm_context, cm_context->hm_cm_queue, cm_context->cm_hm_queue); //set the hw manager's queues
+	connection_manager_init_slave_cid_pool(cm_context);
 #if 0
 	su_get_tx_mouse_keyboard_timeout(&(cm_context->mouse_keyboard_timeout));
 	cm_context->hm_context = hw_manager_new(); //we create the hardware manager and store a reference
@@ -166,16 +208,16 @@ void connection_manager_run(cmContext * cm_context)
 
 	// statistcs_send_json_control_object("flush_active_connections");
 
-	// if(su_toe_init(TRANSMITTER))
-	// {
-	// 	corrib_syslog(LOG_ERR,"CM: Failed to initialise TOE config, terminating\n");
-	// 	exit(0);
-	// }
-	// if(su_avae_init())
-	// {
-	// 	corrib_syslog(LOG_ERR,"CM: Failed to initialise AVAE config, terminating\n");
-	// 	exit(0);
-	// }
+	if(su_toe_init(TRANSMITTER))
+	{
+		corrib_syslog(LOG_ERR,"CM: Failed to initialise TOE config, terminating\n");
+		exit(0);
+	}
+	if(su_avae_init())
+	{
+		corrib_syslog(LOG_ERR,"CM: Failed to initialise AVAE config, terminating\n");
+		exit(0);
+	}
 
 	cm_context->main_thread = connection_manager_create_thread(connection_manager_main_loop, cm_context);
 	if(cm_context->main_thread == -1)
@@ -201,9 +243,42 @@ void connection_manager_run(cmContext * cm_context)
 
 }
 
+static void connection_manager_init_slave_cid_pool(cmContext * cm_context)
+{
+	int index = 0;
+	unsigned int Vslave_cid = STARTING_MULTICAST_VIDEO_CID;
+	unsigned int Aslave_cid = STARTING_MULTICAST_AUDIO_CID;
+	for(index = 0; index < MAX_SHARED_CONNECTIONS; index++)
+	{
+		cm_context->video_slave_cid_pool[index][0] = Vslave_cid++;
+		cm_context->video_slave_cid_pool[index][1] = 0;
+		cm_context->audio_slave_cid_pool[index][0] = Aslave_cid++;
+		cm_context->audio_slave_cid_pool[index][1] = 0;
+	}
+}
 
+void connection_manager_free(cmContext * cm_context)
+{
 
+	// EventEnd* end_event =  event_end_new(); //create an end event to stop the hardware manager
+	// eq_push(cm_context->cm_hm_queue, (eqEvent *)end_event);
 
+	while(cm_context->hm_context->main_thread_state == RUNNING) //wait for the manager to end
+	{
+
+		//corrib_syslog(LOG_DEBUG,"wait hm end\n");
+		usleep(10);
+	}
+	corrib_syslog(LOG_INFO, "CM:Hardware Manager has ended with status: %d (%s)\n",cm_context->hm_context->hm_exit_state,cm_context->hm_context->exit_info);
+	eq_queue_free(cm_context->hm_cm_queue,__func__);
+	eq_queue_free(cm_context->cm_hm_queue,__func__);
+	eq_queue_free(cm_context->peer_cm_queue,__func__); //receives incomming events from the peers
+
+	hw_manager_free(cm_context->hm_context);
+	pthread_mutex_destroy(&(cm_context->mutex));
+	xfree(cm_context,__func__);
+	corrib_syslog(LOG_DEBUG, "CM:Connection Manager has ended\n");
+}
 
 #if 0
 
@@ -2995,8 +3070,8 @@ static boolean connection_manager_handle_resolution_change_for_client(freerdp_pe
 			   )
 			   && (greater_than_hd))
 			{
-				corrib_syslog(LOG_INFO, "%s:Terminating client %s, Cloudlinc resolution is greater then HD (1920x1200). \ 
-						Connection_state=%s, head %d video_state=%s\n", __func__, client->hostname,
+				corrib_syslog(LOG_INFO, "%s:Terminating client %s, Cloudlinc resolution is greater then HD (1920x1200)."
+						"Connection_state=%s, head %d video_state=%s\n", __func__, client->hostname,
 						cm_get_peer_connection_state_string(client->connection_state), head,
 						cm_get_peer_video_state_string(client->video_state[head-1]));
 
