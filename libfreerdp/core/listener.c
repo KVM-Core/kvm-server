@@ -523,9 +523,8 @@ freerdp_listener* freerdp_listener_new(void)
 	freerdp_listener* instance = NULL;
 	rdpListener* listener = NULL;
 	instance = (freerdp_listener*)calloc(1, sizeof(freerdp_listener));
-
 	if (!instance)
-		return NULL;
+		goto instance_no_mem;
 
 	instance->Open = freerdp_listener_open;
 	instance->OpenLocal = freerdp_listener_open_local;
@@ -537,34 +536,37 @@ freerdp_listener* freerdp_listener_new(void)
 	instance->CheckFileDescriptor = freerdp_listener_check_fds;
 	instance->Close = freerdp_listener_close;
 	listener = (rdpListener*)calloc(1, sizeof(rdpListener));
-
 	if (!listener)
-	{
-		free(instance);
-		return NULL;
-	}
+		goto listener_no_mem;
 
 	listener->instance = instance;
 	instance->listener = (void*)listener;
-	// Black Box (begin)
-	//---------------- Setup connection manager ------------------------
-	instance->connection_manager = connection_manager_new(NULL);
+	// //---------------- Setup connection manager ------------------------
+printf("%s(): %d\n", __func__, __LINE__);
 	instance->listener_cm_queue = eq_queue_new(__func__);
-	if (instance->listener_cm_queue)
-	{
-		free(instance->connection_manager);
-		free(instance);
-		return NULL;
-	}
-
-    eq_set_name(instance->listener_cm_queue, "listener_cm_queue");
+	if (!instance->listener_cm_queue)
+		goto queue_no_mem;
+printf("%s(): %d\n", __func__, __LINE__);
+	eq_set_name(instance->listener_cm_queue, "listener_cm_queue");
+printf("%s(): %d\n", __func__, __LINE__);
+	instance->connection_manager = connection_manager_new();
+	if (!instance->connection_manager)
+		goto manager_no_mem;
+printf("%s(): %d\n", __func__, __LINE__);
 	// connection_manager_enable_debug(instance->connection_manager); //uncomment for debug enable
-	connection_manager_enable_performance_analysis(instance->connection_manager);
+	// connection_manager_enable_performance_analysis(instance->connection_manager);
 	connection_manager_set_queues(instance->connection_manager, instance->listener_cm_queue);
 	connection_manager_run(instance->connection_manager);
-	// Black Box (end)
-
 	return instance;
+manager_no_mem:
+	eq_queue_free(instance->listener_cm_queue, __func__);
+queue_no_mem:
+	free(listener);
+listener_no_mem:
+	free(instance);
+instance_no_mem:
+printf("%s(): %d\n", __func__, __LINE__);
+	return NULL;
 }
 
 void freerdp_listener_free(freerdp_listener* instance)

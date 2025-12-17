@@ -153,6 +153,7 @@ set(${MODULE_PREFIX}_SRCS
     timer.h
 
     connection_manager.c
+    hardware_manager.c
 )
 
 set(${MODULE_PREFIX}_SRCS ${${MODULE_PREFIX}_SRCS} ${${MODULE_PREFIX}_GATEWAY_SRCS})

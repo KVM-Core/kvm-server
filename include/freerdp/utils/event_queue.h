@@ -138,4 +138,6 @@ void eq_purge(int event_type, eqEventQueue* event_queue);
 
 void eq_show_event_type(int id);
 
+void eq_set_name(eqEventQueue* event_queue,const char * name);
+
 #endif /* __EVENT_QUEUE_H */

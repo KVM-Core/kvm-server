@@ -365,9 +365,9 @@ void eq_event_free(eqEvent* event)
 	}
 }
 
-void eq_set_name(eqEventQueue* event_queue,const char * name)
+void eq_set_name(eqEventQueue* event_queue,const char* name)
 {
-	strncpy(event_queue->name,name,255);
+	strncpy(event_queue->name, name, 255);
 }
 
 #ifdef MEMORY_ALLOCATION_MONITOR

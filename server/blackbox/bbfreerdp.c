@@ -1387,6 +1387,8 @@ int main(int argc, char* argv[])
 	struct server_info info = { 0 };
 	const char* app = argv[0];
 
+printf("%s(): %d\n", __func__, __LINE__);
+
 	info.test_dump_rfx_realtime = TRUE;
 
 	errno = 0;
@@ -1428,32 +1430,33 @@ int main(int argc, char* argv[])
 		else
 			return usage(app, arg);
 	}
-
+printf("%s(): %d\n", __func__, __LINE__);
 	WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
 	winpr_InitializeSSL(WINPR_SSL_INIT_DEFAULT);
+printf("%s(): %d\n", __func__, __LINE__);
 	instance = freerdp_listener_new();
-
+printf("%s(): %d\n", __func__, __LINE__);
 	if (!instance)
 		return -1;
-
+printf("%s(): %d\n", __func__, __LINE__);
 	if (!info.cert)
 		info.cert = "server.crt";
 	if (!info.key)
 		info.key = "server.key";
-
+printf("%s(): %d\n", __func__, __LINE__);
 	instance->info = (void*)&info;
 	instance->PeerAccepted = bb_peer_accepted;
-
+printf("%s(): %d\n", __func__, __LINE__);
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
 		goto fail;
-
+printf("%s(): %d\n", __func__, __LINE__);
 	/* Open the server socket and start listening. */
 	(void)sprintf_s(name, sizeof(name), "tfreerdp-server.%ld", port);
 	file = GetKnownSubPath(KNOWN_PATH_TEMP, name);
-
+printf("%s(): %d\n", __func__, __LINE__);
 	if (!file)
 		goto fail;
-
+printf("%s(): %d\n", __func__, __LINE__);
 	if (localOnly)
 	{
 		WINPR_ASSERT(instance->OpenLocal);
@@ -1464,14 +1467,16 @@ int main(int argc, char* argv[])
 		WINPR_ASSERT(instance->Open);
 		started = instance->Open(instance, NULL, (UINT16)port);
 	}
-
+printf("%s(): %d\n", __func__, __LINE__);
 	if (started)
 	{
 		/* Entering the server main loop. In a real server the listener can be run in its own
 		 * thread. */
+printf("%s(): %d\n", __func__, __LINE__);
 		bb_server_mainloop(instance);
+printf("%s(): %d\n", __func__, __LINE__);
 	}
-
+printf("%s(): %d\n", __func__, __LINE__);
 	rc = 0;
 fail:
 	free(file);

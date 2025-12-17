@@ -40,11 +40,32 @@
 #include <freerdp/utils/memory.h>
 #include <freerdp/connection_manager.h>
 
-cmContext* connection_manager_new(char * trace_target)
+cmContext* connection_manager_new(void)
 {
 	cmContext* cm_context = xnew(cmContext, __func__);
 	if (!cm_context)
-		return NULL;
+		goto context_alloc_no_mem;
+
+	cm_context->hm_context = hw_manager_new(); //we create the hardware manager and store a reference
+	if (!cm_context->hm_context)
+		goto hm_alloc_no_mem;
+
+
+	cm_context->hm_cm_queue = eq_queue_new(__func__);
+	if (!cm_context->hm_cm_queue)
+		goto hm_cm_queue_no_mem;
+    eq_set_name(cm_context->hm_cm_queue, "hm_cm_queue");
+
+	cm_context->cm_hm_queue = eq_queue_new(__func__);
+	if (!cm_context->cm_hm_queue)
+		goto cm_hm_queue_no_mem;
+    eq_set_name(cm_context->cm_hm_queue, "cm_hm_queue");
+
+	cm_context->peer_cm_queue = eq_queue_new(__func__);
+	if (!cm_context->peer_cm_queue)
+		goto peer_cm_queue_no_mem;
+	eq_set_name(cm_context->peer_cm_queue, "peer_cm_queue");
+
 #if 0
 	su_get_tx_mouse_keyboard_timeout(&(cm_context->mouse_keyboard_timeout));
 	cm_context->hm_context = hw_manager_new(); //we create the hardware manager and store a reference
@@ -95,6 +116,16 @@ cmContext* connection_manager_new(char * trace_target)
 	connection_manager_init_slave_cid_pool(cm_context);
 #endif
 	return cm_context;
+peer_cm_queue_no_mem:
+	eq_queue_free(cm_context->peer_cm_queue, __func__);
+cm_hm_queue_no_mem:
+	eq_queue_free(cm_context->cm_hm_queue, __func__);
+hm_cm_queue_no_mem:
+	eq_queue_free(cm_context->hm_cm_queue, __func__);
+hm_alloc_no_mem:
+	xfree(cm_context, __func__);
+context_alloc_no_mem:
+	return NULL;
 }
 
 void connection_manager_enable_performance_analysis(cmContext * cm_context)
@@ -106,13 +137,29 @@ void connection_manager_enable_performance_analysis(cmContext * cm_context)
 
 void connection_manager_set_queues(cmContext * cm_context,eqEventQueue* listener_queue)
 {
-
 	cm_context->listener_queue = listener_queue;
 }
 
-// static void * connection_manager_main_loop(void * arg)
-// {
-// }
+static void * connection_manager_main_loop(void * arg)
+{
+	while (1)
+	{
+		printf("%s(): iteration\n", __func__);
+		sleep(1);
+	}
+}
+
+pthread_t connection_manager_create_thread(void* func, void* arg)
+{
+	pthread_t thread;
+
+	if (pthread_create(&thread, 0, func, arg) != 0)
+	{
+		corrib_syslog(LOG_ERR,"%s: Failed to created thread for connection_manager\n",__func__);
+		return -1;
+	}
+	return thread;
+}
 
 void connection_manager_run(cmContext * cm_context)
 {
@@ -130,24 +177,27 @@ void connection_manager_run(cmContext * cm_context)
 	// 	exit(0);
 	// }
 
-	// cm_context->main_thread = connection_manager_create_thread(connection_manager_main_loop, cm_context);
-	// cm_context->video_municast_running = 0;
-	// cm_context->audio_municast_running = 0;
-	// cm_context->video_multicast_running = 0;
-	// cm_context->audio_multicast_running = 0;
-	// cm_context->connecting_client = NULL;
-	// if(cm_context->main_thread == -1)
-	// {
-	// 	corrib_syslog(LOG_ERR,"CM:Failed to create thread for connection_manager,terminating\n");
-	// 	exit(0);
-	// }
-	// // if(freerdp_check_file_exists("/usr/local/FPGA_RESET_TEST"))
-	// // {
-	// // 	corrib_syslog(LOG_DEBUG,"Entering FPGA reset test mode\n");
-	// // 	hw_manager_test_fpga_reset(cm_context->hm_context);
-	// // }
-	// // else
-	// // 	hw_manager_run(cm_context->hm_context); //start the hardware manager
+	cm_context->main_thread = connection_manager_create_thread(connection_manager_main_loop, cm_context);
+	if(cm_context->main_thread == -1)
+	{
+		corrib_syslog(LOG_ERR, "CM:Failed to create thread for connection_manager,terminating\n");
+		return;
+	}
+
+	cm_context->video_municast_running = false;
+	cm_context->audio_municast_running = false;
+	cm_context->video_multicast_running = false;
+	cm_context->audio_multicast_running = false;
+
+	cm_context->connecting_client = NULL;
+
+	if(freerdp_check_file_exists("/usr/local/FPGA_RESET_TEST"))
+	{
+		corrib_syslog(LOG_DEBUG, "Entering FPGA reset test mode\n");
+		// hw_manager_test_fpga_reset(cm_context->hm_context);
+	}
+	// else
+		// hw_manager_run(cm_context->hm_context); //start the hardware manager
 
 }
 

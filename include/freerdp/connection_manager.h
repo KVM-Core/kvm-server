@@ -27,6 +27,7 @@
 #include <freerdp/settings.h>
 #include <freerdp/peer.h>
 #include <freerdp/utils/event_queue.h>
+#include <freerdp/hardware_manager.h>
 
 typedef struct connection_manager_context cmContext;
 
@@ -35,7 +36,7 @@ struct connection_manager_context
 	
 	//-------------------------References------------------------
 	//-----------------------------------------------------------
-	// hwManagerContext * hm_context;
+	hwManagerContext * hm_context;
 
 	//--------------------------Callbacks-------------------------
 	//-------------------------------------------------------------
@@ -126,7 +127,10 @@ struct connection_manager_context
 	int netlink_sock_fd;
 };
 
-
+cmContext *  connection_manager_new(void);
+void connection_manager_free(cmContext * cm_context);
+void connection_manager_set_queues(cmContext * cm_context,eqEventQueue* listner_queue);
+void connection_manager_run(cmContext * cm_context);
 #if 0
 
 #include <sys/socket.h>
@@ -299,5 +303,5 @@ int connect_manager_get_peer_list_size_and_types(cmContext * cm_context, uint32_
 void connection_manager_populate_client_resolution_values(hwManagerContext * hw_context, const COMPRESSION_MODE compression, rdpSettings * settings, const video_head_index_e head);
 void connection_manager_set_server_mode(cmContext * cm_context, freerdp_peer * client);
 
-#endif 0
+#endif
 #endif //__CONNECTION_MANAGER_H
