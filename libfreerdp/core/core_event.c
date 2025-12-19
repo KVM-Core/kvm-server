@@ -11,7 +11,7 @@
 #include <corrib_logger.h>
 #include <textfields.h>
 
-#include "core_event.h"
+#include <freerdp/core_event.h>
 #include "mcs.h"
 
 
@@ -1668,7 +1668,7 @@ EventChannelReady* event_channel_ready_new(rdpMcsChannel* channel)
 		event_channel_ready->type = EQ_EVENT_CHANNEL_READY;
 		event_channel_ready->send_time = 0;
 		event_channel_ready->receive_time = 0;
-		event_channel_ready->channel = channel;
+		// event_channel_ready->channel = channel;
 	}
 
 	return event_channel_ready;
@@ -1689,10 +1689,10 @@ void event_channel_ready_show(EventChannelReady* event_channel_ready)
 	if(event_channel_ready)
 	{
 		printf("-------\n");
-		printf("channel ID: %d\n",event_channel_ready->channel->ChannelId);
+		// printf("channel ID: %d\n",event_channel_ready->channel->ChannelId);
 		printf("sent: %u\n",event_channel_ready->send_time);
 		printf("received: %u\n",event_channel_ready->receive_time);
-		printf("channel name: %s\n",event_channel_ready->channel->Name);
+		// printf("channel name: %s\n",event_channel_ready->channel->Name);
 		printf("-------\n");
 	}
 }
@@ -1701,14 +1701,14 @@ void event_channel_ready_show(EventChannelReady* event_channel_ready)
 /*
  * The calling function must manage the memory
  */
-void event_channel_ready_json_serialise(EventChannelReady* event_channel_ready, char * buffer,int  buffer_size)
-{
-	if(event_channel_ready)
-	{
-		snprintf(buffer,buffer_size,"{'EventType': %d,'StartTime': %u,'EndTime': %u,'Field1': '%d','Field2': '%s'  }",
-				EQ_EVENT_CHANNEL_READY, event_channel_ready->send_time,event_channel_ready->receive_time,event_channel_ready->channel->ChannelId, event_channel_ready->channel->Name);
-	}
-}
+// void event_channel_ready_json_serialise(EventChannelReady* event_channel_ready, char * buffer,int  buffer_size)
+// {
+// 	if(event_channel_ready)
+// 	{
+// 		snprintf(buffer,buffer_size,"{'EventType': %d,'StartTime': %u,'EndTime': %u,'Field1': '%d','Field2': '%s'  }",
+// 				EQ_EVENT_CHANNEL_READY, event_channel_ready->send_time,event_channel_ready->receive_time,event_channel_ready->channel->ChannelId, event_channel_ready->channel->Name);
+// 	}
+// }
 
 
 // RDPEUSB Command Available

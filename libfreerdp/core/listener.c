@@ -541,7 +541,8 @@ static BOOL freerdp_listener_check_fds(freerdp_listener* instance)
 			// if(instance->connection_manager->performance_analysis)
 			// 	new_connection_event->send_time = sh_log_get_mstime();
 			corrib_syslog(LOG_NOTICE, "%s: Got client %s\n", __func__, hostname);
-			eq_push(instance->listener_cm_queue,(eqEvent *)new_connection_event);
+			printf("%s: Got client %s\n", __func__, hostname);
+			eq_push(instance->listener_cm_queue, (eqEvent *)new_connection_event);
 		}
 
 	}

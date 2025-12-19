@@ -1530,32 +1530,32 @@ BOOL freerdp_peer_context_new_ex(freerdp_peer* client, const rdpSettings* settin
 	WINPR_ASSERT(client->ContextSize >= sizeof(rdpContext));
 	if (!(context = (rdpContext*)calloc(1, client->ContextSize)))
 		goto fail;
-
+printf("OK at %d\n", __LINE__);
 	client->context = context;
 	context->peer = client;
 	context->ServerMode = TRUE;
 	context->log = WLog_Get(TAG);
 	if (!context->log)
 		goto fail;
-
+printf("OK at %d\n", __LINE__);
 	if (settings)
 	{
 		context->settings = freerdp_settings_clone(settings);
 		if (!context->settings)
 			goto fail;
 	}
-
+printf("OK at %d\n", __LINE__);
 	context->dump = stream_dump_new();
 	if (!context->dump)
 		goto fail;
 	if (!(context->metrics = metrics_new(context)))
 		goto fail;
-
+printf("OK at %d\n", __LINE__);
 	if (!(rdp = rdp_new(context)))
 		goto fail;
-
+printf("OK at %d\n", __LINE__);
 	rdp_log_build_warnings(rdp);
-
+printf("OK at %d\n", __LINE__);
 #if defined(WITH_FREERDP_DEPRECATED)
 	client->update = rdp->update;
 	client->settings = rdp->settings;
@@ -1568,22 +1568,22 @@ BOOL freerdp_peer_context_new_ex(freerdp_peer* client, const rdpSettings* settin
 	context->autodetect = rdp->autodetect;
 	update_register_server_callbacks(rdp->update);
 	autodetect_register_server_callbacks(rdp->autodetect);
-
+printf("OK at %d\n", __LINE__);
 	if (!(context->channelErrorEvent = CreateEvent(NULL, TRUE, FALSE, NULL)))
 	{
 		WLog_ERR(TAG, "CreateEvent failed!");
 		goto fail;
 	}
-
+printf("OK at %d\n", __LINE__);
 	if (!(context->errorDescription = calloc(1, 500)))
 	{
 		WLog_ERR(TAG, "calloc failed!");
 		goto fail;
 	}
-
+printf("OK at %d\n", __LINE__);
 	if (!freerdp_peer_transport_setup(client))
 		goto fail;
-
+printf("OK at %d\n", __LINE__);
 	client->IsWriteBlocked = freerdp_peer_is_write_blocked;
 	client->DrainOutputBuffer = freerdp_peer_drain_output_buffer;
 	client->HasMoreToRead = freerdp_peer_has_more_to_read;
@@ -1595,6 +1595,7 @@ BOOL freerdp_peer_context_new_ex(freerdp_peer* client, const rdpSettings* settin
 	return TRUE;
 
 fail:
+printf("OK at %d\n", __LINE__);
 	WLog_ERR(TAG, "ContextNew callback failed");
 	freerdp_peer_context_free(client);
 	return FALSE;

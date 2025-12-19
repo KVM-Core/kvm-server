@@ -8,7 +8,7 @@
 // #include <freerdp/channels/rdpeusb.h>
 #include <freerdp/freerdp.h>
 #include <freerdp/utils/event_queue.h>
-#include "mcs.h"
+// #include "mcs.h"
 
 
 enum access_status {
@@ -217,7 +217,7 @@ EventSyncLoss* event_sync_loss_new(int head_id);
 void event_sync_loss_free(EventSyncLoss* event_sync_loss);
 void event_sync_loss_show(EventSyncLoss* event_sync_loss);
 void event_sync_loss_json_serialise(EventSyncLoss* event_sync_loss, char * buffer,int  buffer_size);
-void event_resolution_change_json_serialise(EventResolutionChange* event_resolution_change, char * buffer,int  buffer_size);
+// void event_resolution_change_json_serialise(EventResolutionChange* event_resolution_change, char * buffer,int  buffer_size);
 //------------------------------------------
 
 
@@ -393,10 +393,10 @@ struct event_channel_ready
 	UINT32 send_time;
 	UINT32 receive_time;
 	//------ all events must start with these members
-	rdpMcsChannel* channel;
+	// rdpMcsChannel* channel;
 };
 
-EventChannelReady* event_channel_ready_new(rdpMcsChannel* channel);
+// EventChannelReady* event_channel_ready_new(rdpMcsChannel* channel);
 void event_channel_ready_free(EventChannelReady* event_channel_ready);
 void event_channel_ready_show(EventChannelReady* event_channel_ready);
 void event_channel_ready_json_serialise(EventChannelReady* event_channel_ready, char * buffer,int  buffer_size);

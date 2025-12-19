@@ -22,13 +22,7 @@
 
 typedef struct eq_event eqEvent;
 typedef struct eq_event_queue eqEventQueue;
-typedef enum fault_type FaultType;
-
-#include <pthread.h>
-#include <freerdp/types.h>
-#include <freerdp/utils/memory.h>
-
-enum fault_type
+typedef enum fault_type
 {
 	MOUSE_WRITE_FAULT,
 	KEYBOARD_WRITE_FAULT,
@@ -37,7 +31,12 @@ enum fault_type
 	BLI_THREAD_LOCKUP,
 	FIF_EXCEPTION
 
-};
+}FaultType;
+#include <pthread.h>
+#include <freerdp/types.h>
+#include <freerdp/utils/memory.h>
+
+
 
 
 //the order of these is important, add new events to the end

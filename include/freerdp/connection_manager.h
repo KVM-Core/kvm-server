@@ -54,7 +54,7 @@ struct nl_message {
 
 typedef struct connection_manager_context cmContext;
 
-// typedef void (*cmPeerAccepted)(cmContext * cm_context, freerdp_peer* client);
+typedef void (*cmPeerAccepted)(cmContext * cm_context, freerdp_peer* client);
 // typedef void (*cmMulticastPeerAccepted)(cmContext * cm_context, m_peer* client);
 
 typedef struct peer_node peerNode;
@@ -90,7 +90,7 @@ struct connection_manager_context
 
 	//--------------------------Callbacks-------------------------
 	//-------------------------------------------------------------
-	// cmPeerAccepted PeerAccepted; //we call this to initialise the peer
+	cmPeerAccepted PeerAccepted; //we call this to initialise the peer
 	// cmMulticastPeerAccepted mPeerAccepted; //we call this to initialise the mpeer
 
 	//---------------------- Peer List ------------------------------

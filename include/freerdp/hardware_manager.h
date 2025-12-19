@@ -113,38 +113,30 @@
 #define HEAD_1 0
 #define HEAD_2 1
 
-typedef enum hw_manager_state state;
-
 enum hw_manager_state
 {
 	OFF = 0,
 	ON = 1
 };
 
-typedef enum hw_media_state hwMediaState;
-
-enum hw_media_state
+typedef enum hw_media_state
 {
 	HEAD_ONE = 0,
 	HEAD_TWO = 1,
 	AUDIO = 2,
 	USB = 3
-};
+} hwMediaState;
 
-typedef struct hw_manager_context hwManagerContext;
-
-typedef enum thread_state threadState;
-enum thread_state {
+typedef enum thread_state {
 	RUNNING,
 	ENDING,
 	STOPPED
-};
+} threadState;
 
-typedef enum exit_state exitState;
-enum exit_state {
+typedef enum exit_state {
 	NORMAL,
 	ERROR
-};
+} exitState;
 
 typedef struct frame_record FrameRecord;
 struct frame_record
@@ -163,6 +155,8 @@ struct frame_record
 // 	BOOL sync_loss;
 // } videoData_t;
 
+typedef struct hw_manager_context hwManagerContext;
+
 struct hw_manager_context
 {
 	// //------------------Memory Mapping -------------------------
@@ -173,7 +167,7 @@ struct hw_manager_context
 	// videoHead_t ingress_resolution[2];	  	  //This is actual input resolution from the source
 	// videoHead_t optimised_egress_res[2];  	  //Connection resolution of Optimised Connections
 	// videoHead_t lossless_egress_res;	      //Connection resolution of Lossless Connections
-	bool optimised_path_scaled;				  //Set to true when Optimised path is scaled
+	BOOL optimised_path_scaled;				  //Set to true when Optimised path is scaled
 
 	//------------ Board Config ---------------------------
 	BOOL dual_head_board;

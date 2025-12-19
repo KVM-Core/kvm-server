@@ -153,7 +153,6 @@ set(${MODULE_PREFIX}_SRCS
     timer.h
 
     core_event.c
-    core_event.h
     connection_manager.c
     hardware_manager.c
 )

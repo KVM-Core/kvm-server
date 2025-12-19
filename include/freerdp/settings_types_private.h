@@ -32,6 +32,8 @@
 
 #include <string.h>
 
+#include <textfields.h>
+
 /** \addtogroup rdpSettings
  *  @{
  */
@@ -46,6 +48,16 @@ extern "C"
 #else
 #define SETTINGS_DEPRECATED(x) x
 #endif
+
+// Black Box (begin)
+struct rdp_keepalive
+{
+	UINT8 info_flags;
+	UINT32 expiration_period;
+	UINT32 interval_period;
+};
+typedef struct rdp_keepalive rdpkeepalive;
+// Black Box (end)
 
 struct rdp_settings
 {
@@ -859,14 +871,45 @@ struct rdp_settings
 	 * is therefore potentially subject to ABI breakage.
 	 */
 	
-	/**
-	 * Black Box
-	 */
+	// Black Box (begin)
 	SETTINGS_DEPRECATED(ALIGN64 char* home_path); /* 6000 */
 	SETTINGS_DEPRECATED(ALIGN64 char* config_path); /* 6001 */
 	SETTINGS_DEPRECATED(ALIGN64 char* current_path); /* 6002 */
 	SETTINGS_DEPRECATED(ALIGN64 char* development_path); /* 6003 */
 	SETTINGS_DEPRECATED(ALIGN64 BOOL development_mode); /* 6004 */
+
+	/*Cloudium */
+	SETTINGS_DEPRECATED(ALIGN64 videoHead_t connection_resolution[2]); /* 6005 */
+	SETTINGS_DEPRECATED(ALIGN64 videoHead_t unscaled_input_resolution[2]); /* 6006 */
+	SETTINGS_DEPRECATED(ALIGN64 BOOL head_detected[2]); /* 6007 */
+
+	//ALIGN64 BOOL capability_exchange_complete;
+	SETTINGS_DEPRECATED(ALIGN64 BOOL outputReportAvailable); /* 6008 */
+	SETTINGS_DEPRECATED(ALIGN64 UINT8 outputReportBitmask); /* 6009 */
+	
+	//ALIGN64 CONNECTION_MODE connection_mode;
+	SETTINGS_DEPRECATED(ALIGN64 COMPRESSION_MODE compression_mode); /* 6010 */
+	SETTINGS_DEPRECATED(ALIGN64 CLIENT_TECHNOLOGY_TYPE client_technology_type); /* 6011 */
+	SETTINGS_DEPRECATED(ALIGN64 char * multicast_ip); /* 6012 */
+	SETTINGS_DEPRECATED(ALIGN64 int  multicast_port); /* 6013 */
+	SETTINGS_DEPRECATED(ALIGN64 rdpkeepalive keepalive); /* 6014 */
+	SETTINGS_DEPRECATED(ALIGN64 UINT32 peer_expiration_period); /* 6015 */
+
+	SETTINGS_DEPRECATED(ALIGN64 time_t expiration_time); /* 6016 */
+	SETTINGS_DEPRECATED(ALIGN64 time_t interval_time); /* 6017 */
+	SETTINGS_DEPRECATED(ALIGN64 time_t last_active_checkpoint); /* 6018 */
+	SETTINGS_DEPRECATED(ALIGN64 UINT8 source_macaddr[6]); /* 6019 */
+
+	//------------------------------------ Debug and Profiling ----------------
+	//-------------------------------------------------------------
+
+	SETTINGS_DEPRECATED(ALIGN64 BOOL performance_analysis); /* 6020 */
+	SETTINGS_DEPRECATED(ALIGN64 BOOL debug_enabled); /* 6021 */
+	SETTINGS_DEPRECATED(ALIGN64 int num_monitors_detected); /* 6022 */
+	SETTINGS_DEPRECATED(ALIGN64 BOOL heartbeat_enabled); /* 6023 */
+	SETTINGS_DEPRECATED(ALIGN64 BOOL sync_loss_h1); /* 6024 */
+	SETTINGS_DEPRECATED(ALIGN64 BOOL sync_loss_h2); /* 6025 */
+	// Black Box (end)
 };
 
 #ifdef __cplusplus

@@ -44,6 +44,8 @@
 #include <system_avae.h>
 #include <system_toe.h>
 
+#include <freerdp/core_event.h>
+
 enum cm_av_channel_state {
 	CM_AV_CHANNEL_UNUSED = 0,
 	CM_AV_CHANNEL_ALLOCATED,
@@ -182,13 +184,278 @@ void connection_manager_set_queues(cmContext * cm_context,eqEventQueue* listener
 	cm_context->listener_queue = listener_queue;
 }
 
-static void * connection_manager_main_loop(void * arg)
+static BOOL connection_manager_get_fds(cmContext * cm_context, void** rfds, int* rcount)
 {
-	while (1)
+	//int i;
+	if(*rcount > MAX_FDS)
 	{
-		printf("%s(): iteration\n", __func__);
-		sleep(1);
+		corrib_syslog(LOG_ERR,"CM:connection manager has exceeded maximum file descriptors (%d) in %s\n", MAX_FDS, __func__);
+		return false;
 	}
+	//get the queue FD for the hardware manager as we must process his events
+	// int fd_hm_cm = eq_get_queue_fd(cm_context->hm_cm_queue);
+	// if (fd_hm_cm < 1)
+	// {
+	// 	corrib_syslog(LOG_ERR,"CM:connection manager failed to get file descriptors for hm queue in %s\n",__func__);
+	// 	return false;
+	// }
+	// else
+	// {
+
+	// 	rfds[*rcount] = (void*)(long)(fd_hm_cm);
+	// 	(*rcount)++;
+	// }
+
+	int fd_listner = eq_get_queue_fd(cm_context->listener_queue);
+	if (fd_listner < 1)
+	{
+		corrib_syslog(LOG_ERR,"CM:connection manager failed to get file descriptors for listner queue in %s\n",__func__);
+		return false;
+	}
+	else
+	{
+
+		rfds[*rcount] = (void*)(long)(fd_listner);
+		(*rcount)++;
+	}
+
+	// int fd_peer = eq_get_queue_fd(cm_context->peer_cm_queue);
+	// if (fd_peer < 1)
+	// {
+	// 	corrib_syslog(LOG_ERR,"CM:connection manager failed to get file descriptors for peer queue in %s\n",__func__);
+	// 	return false;
+	// }
+	// else
+	// {
+	// 	rfds[*rcount] = (void*)(long)(fd_peer);
+	// 	(*rcount)++;
+	// }
+
+	// if (cm_context->netlink_sock_fd < 1) {
+	// 	corrib_syslog(LOG_ERR,"CM:connection manager failed to get file descriptors for netlink sock in %s\n",__func__);
+	// 	return false;
+	// } else {
+	// 	/* fd for netlink socket */
+	// 	rfds[*rcount] = (void*)(long)(cm_context->netlink_sock_fd);
+	// 	(*rcount)++;
+	// }
+
+	return true;
+}
+
+static void connection_manager_handle_new_client_request(cmContext* cm_context, int client_socket_fd, const char* hostname)
+{
+    #ifdef SHARED_MODE_DEBUG
+	corrib_syslog(LOG_DEBUG,"CM:%s:\n", __func__);
+    #endif
+	freerdp_peer* client;
+	bbPeerContext *bbPContext;
+	// int current_peers = connect_manager_get_peer_list_size(cm_context);
+
+#ifdef CONNECTION_PROFILING
+	char command[255];
+	sprintf(command,"/opt/blackbox/time_check.sh SERVER cm_new_peer ");
+	system(command);
+#endif
+
+	//create the new server_peer/peer
+	client = freerdp_peer_new(client_socket_fd);
+	if (!client)
+	{
+		corrib_syslog(LOG_ERR,"CM: %s(): ENOMEM error at line %d\n", __func__, __LINE__);
+		return;
+	}
+
+	corrib_syslog(LOG_DEBUG,"CM: %s(): freerdp_peer* client at line %d = %p\n", __func__, __LINE__, client);
+
+	bbPContext = (bbPeerContext *) xzalloc(sizeof(bbPeerContext), __func__);
+	if (!bbPContext)
+	{
+		corrib_syslog(LOG_DEBUG,"CM: %s(): ENOMEM error at line %d\n", __func__, __LINE__);
+		return;
+	}
+
+	corrib_syslog(LOG_DEBUG,"CM: %s(): bbPeerContext * bbPContext at line %d = %p\n", __func__, __LINE__, bbPContext);
+
+	client->ContextExtra = bbPContext;
+
+	bbPContext->connection_id = cm_context->client_id_counter++;
+
+#ifdef DEBUG_ENABLED
+	corrib_syslog(LOG_DEBUG,"CM:%s:operating mode is %d, current_peers=%d\n",  __func__,cm_context->cm_operating_mode,current_peers);
+#endif
+	bbPContext->peer_type = PRIMARY_PEER;
+
+	//this call causes all of the subsequent client initialisation including creation of the server_peer context
+	IFCALL(cm_context->PeerAccepted, cm_context, client); 
+
+	strncpy(client->hostname, hostname, 50);
+
+	cm_context->hm_context->signal_new_connection = true;
+	// connection_manager_peer_list_insert(cm_context, client);
+	cm_context->succesful_logins++;
+
+	strncpy(bbPContext->connection_hostname, hostname, 255);
+	strncpy(bbPContext->connection_username, "demo", 255);
+
+	// connection_manager_set_connecting_client(cm_context, client, __func__);
+
+	// bbPContext->connection_start_time = sh_log_get_mstime();
+
+
+
+	// statistcs_send_json_active_connection_statistic_object("unknown", "unknown", bbPContext->connection_mode,
+	// 														bbPContext->connection_start_time,
+	// 														bbPContext->connection_id,
+	// 														bbPContext->connection_hostname,
+	// 														0);
+	corrib_syslog_es (LOG_INFO, "cm_new_client");
+}
+
+
+static void* connection_manager_main_loop(void * arg)
+{
+	cmContext * cm_context = (cmContext *)arg;
+	BOOL running = true;
+	int i;
+	int fds;
+	int max_fds;
+	int rcount;
+	void* rfds[32];
+	fd_set rfds_set; //read fds
+	fd_set efds_set; //error fds
+	int num_set;
+	int cid;
+	memset(rfds, 0, sizeof(rfds));
+	// cm_context->main_thread_state = RUNNING;
+	time_t last_processed = time(NULL);
+	struct timeval tv = {.tv_sec = CM_DEFAULT_INTERVAL_PERIOD, .tv_usec = 0};
+
+	// cm_context->netlink_sock_fd = connection_manager_netlink_init();
+
+	while(running)
+	{
+
+		rcount = 0;
+		//corrib_syslog(LOG_DEBUG,"%s:[CM_ML]",__func__);
+		int listner_fd = eq_get_queue_fd(cm_context->listener_queue);
+		// int hm_cm_fd = eq_get_queue_fd(cm_context->hm_cm_queue);
+		// int peer_cm_fd = eq_get_queue_fd(cm_context->peer_cm_queue);
+		// connection_manager_get_timeout_interval(cm_context, &tv);
+
+		if(connection_manager_get_fds(cm_context, rfds, &rcount) != true)
+		{
+			corrib_syslog(LOG_ERR,"CM:Failed to get connection manager file descriptors in %s\n",__func__);
+			running = false;
+			// cm_context->main_thread_state = STOPPED;
+
+			break;
+		}
+
+
+		max_fds = 0;
+		FD_ZERO(&rfds_set);
+
+		for (i = 0; i < rcount; i++)
+		{
+			fds = (int)(long)(rfds[i]);
+
+			if (fds > max_fds)
+				max_fds = fds;
+
+			FD_SET(fds, &rfds_set);
+		}
+
+		if (max_fds == 0)
+		{
+			running = false;
+			// cm_context->main_thread_state = STOPPED;
+			corrib_syslog(LOG_ERR,"CM:max fds are zero in %s\n",__func__);
+			break;
+		}
+
+
+		//corrib_syslog(LOG_DEBUG,"CM_BS\n");
+		num_set = select(max_fds + 1, &rfds_set, NULL, &efds_set, &tv);
+		//corrib_syslog(LOG_DEBUG,"CM_AS\n");
+		if(num_set == -1)
+		{
+			/* these are not really errors */
+			if (!((errno == EAGAIN) ||
+				(errno == EWOULDBLOCK) ||
+				(errno == EINPROGRESS) ||
+				(errno == EINTR))) /* signal occurred */
+			{
+				corrib_syslog(LOG_ERR,"CM:%s: select failed on error: %s.\n",  __func__,strerror(errno));
+				running = false;
+				// cm_context->main_thread_state = STOPPED;
+				// connection_manager_check_fd_status("hm_cm_fd",hm_cm_fd);
+				// connection_manager_check_fd_status("listner_fd",listner_fd);
+				// connection_manager_check_fd_status("peer_cm_fd",peer_cm_fd);
+				// connection_manager_check_fd_status("Netlink_Sock",cm_context->netlink_sock_fd);
+				break;
+			}
+		} //else everything is as we expected
+		else
+		{
+			BOOL known_event = false;
+			EventNewConnection * new_connection_event;
+
+			if (FD_ISSET(listner_fd, &rfds_set)) //need to figure out which queue has fired
+			{
+#ifdef VERBOSE_DEBUGGING
+				corrib_syslog(LOG_DEBUG,"CM: %s: checking for events from the listner.\n",  __func__);
+#endif
+				known_event = true;
+				eqEvent* event = eq_pop(cm_context->listener_queue);
+				if (event)
+				{
+					switch (event->type)
+					{
+					case EQ_EVENT_END:
+						corrib_syslog(LOG_INFO,"CM:%s: got an end event (%s), terminating.\n",  __func__,strerror(errno));
+						running = false;
+						// cm_context->main_thread_state = STOPPED;
+						break;
+					case EQ_EVENT_NEW_CONNECTION:
+						new_connection_event = (EventNewConnection *)event;
+						if (cm_context->connecting_client)
+						{
+							peerWaitNode * node = xmalloc(sizeof(peerWaitNode), __func__);      /* Insert at the head. */
+							strcpy(node->hostname, new_connection_event->hostname);
+							node->fd = new_connection_event->peer_sockfd;
+							TAILQ_INSERT_TAIL(&(cm_context->peer_wait_queue_head), node, entries);
+							corrib_syslog(LOG_INFO,"CM: %s(): Deferring a new connection event for client: %s (%d).\n",  __func__,
+									new_connection_event->hostname,
+									new_connection_event->peer_sockfd);
+						}
+						else
+						{
+							corrib_syslog(LOG_INFO,"CM:%s: Processing a new connection event for client:%s (%d).\n",
+									__func__,
+									new_connection_event->hostname,
+									new_connection_event->peer_sockfd);
+							connection_manager_handle_new_client_request(cm_context, new_connection_event->peer_sockfd, new_connection_event->hostname);
+						}
+						break;
+					default:
+						corrib_syslog(LOG_ERR,"CM:%s: got an unknown event type from peer: %u.\n",  __func__,event->type);
+						eq_show_event_type(event->type);
+						break;
+					}
+					eq_event_free(event); //free the event
+				}
+                else
+                {
+                    corrib_syslog(LOG_ERR, "CM: %s: expected an event from the listener, but did not receive one.\n",  __func__);
+                }
+			}
+		}
+
+	} //end of while loop
+	close(cm_context->netlink_sock_fd);
+	pthread_exit(NULL);
+	return NULL;
 }
 
 pthread_t connection_manager_create_thread(void* func, void* arg)
