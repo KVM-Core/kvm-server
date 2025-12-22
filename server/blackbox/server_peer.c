@@ -652,16 +652,30 @@ void server_peer_init(freerdp_peer* client, cmContext* cm_context)
 	//---------------------------------------
 	rdpSettings* settings;
 
-	settings = bb_peer_context->settings;
+	if (!client->context->settings) {
+		corrib_syslog(LOG_ERR, "%s(): No settings at %d\n", __func__, __LINE__);
+		return;
+	}
+	else {
+		settings = client->context->settings; //bb_peer_context->settings;
+	}
 
 	corrib_syslog(LOG_DEBUG, "%s(): at %d\n", __func__, __LINE__);
-
-	//corrib_syslog(LOG_INFO,"<<<<<<<< Initialised resolution settings in %s detected width = %d>>>>>>>>>>>>>>>\n",__func__,cm_context->hm_context->videoStatistics.resolution_width_h1);
 
 	// if(cm_context->hm_context->head_detected[0] && cm_context->hm_context->head_detected[1])
 	// 	settings->num_monitors_detected = 2;
 	// else
-	// 	settings->num_monitors_detected = 1;
+
+	// bb_peer_context->settings 
+
+	// freerdp_settings_set_uint32(settings, FreeRDP_num_monitors_detected, 0xCACA);
+
+	settings->num_monitors_detected = 1;
+
+	// UINT32 toto = freerdp_settings_get_uint32(settings, FreeRDP_num_monitors_detected);
+
+
+	// settings->num_monitors_detected = toto;
 
 	//All of these here are subject to a race with server_peer_post_connect
 	//TODO MD - We need to set these are we know what the client is
@@ -672,9 +686,9 @@ void server_peer_init(freerdp_peer* client, cmContext* cm_context)
 
 	// settings->performance_analysis = cm_context->performance_analysis;
 	// settings->debug_enabled = cm_context->debug_enabled;
-	// settings->cert_file = xstrdup("/opt/blackbox/shfreerdp/server.crt");
-	// settings->privatekey_file = xstrdup("/opt/blackbox/shfreerdp/server.key");
-	// settings->rdp_key_file = xstrdup("/opt/blackbox/shfreerdp/rdp.key");
+	settings->cert_file = xstrdup("/opt/blackbox/shfreerdp/server.crt");
+	settings->privatekey_file = xstrdup("/opt/blackbox/shfreerdp/server.key");
+	settings->rdp_key_file = xstrdup("/opt/blackbox/shfreerdp/rdp.key");
 	corrib_syslog(LOG_DEBUG, "%s(): at %d\n", __func__, __LINE__);
 #if 0
 	settings->nla_security = false;

@@ -879,9 +879,9 @@ struct rdp_settings
 	SETTINGS_DEPRECATED(ALIGN64 BOOL development_mode); /* 6004 */
 
 	/*Cloudium */
-	SETTINGS_DEPRECATED(ALIGN64 videoHead_t connection_resolution[2]); /* 6005 */
-	SETTINGS_DEPRECATED(ALIGN64 videoHead_t unscaled_input_resolution[2]); /* 6006 */
-	SETTINGS_DEPRECATED(ALIGN64 BOOL head_detected[2]); /* 6007 */
+	SETTINGS_DEPRECATED(ALIGN64 videoHead_t* connection_resolution); /* 6005 */
+	SETTINGS_DEPRECATED(ALIGN64 videoHead_t* unscaled_input_resolution); /* 6006 */
+	SETTINGS_DEPRECATED(ALIGN64 UINT8 head_detected); /* 6007 */
 
 	//ALIGN64 BOOL capability_exchange_complete;
 	SETTINGS_DEPRECATED(ALIGN64 BOOL outputReportAvailable); /* 6008 */
@@ -890,7 +890,7 @@ struct rdp_settings
 	//ALIGN64 CONNECTION_MODE connection_mode;
 	SETTINGS_DEPRECATED(ALIGN64 COMPRESSION_MODE compression_mode); /* 6010 */
 	SETTINGS_DEPRECATED(ALIGN64 CLIENT_TECHNOLOGY_TYPE client_technology_type); /* 6011 */
-	SETTINGS_DEPRECATED(ALIGN64 char * multicast_ip); /* 6012 */
+	SETTINGS_DEPRECATED(ALIGN64 char* multicast_ip); /* 6012 */
 	SETTINGS_DEPRECATED(ALIGN64 int  multicast_port); /* 6013 */
 	SETTINGS_DEPRECATED(ALIGN64 rdpkeepalive keepalive); /* 6014 */
 	SETTINGS_DEPRECATED(ALIGN64 UINT32 peer_expiration_period); /* 6015 */
@@ -898,17 +898,23 @@ struct rdp_settings
 	SETTINGS_DEPRECATED(ALIGN64 time_t expiration_time); /* 6016 */
 	SETTINGS_DEPRECATED(ALIGN64 time_t interval_time); /* 6017 */
 	SETTINGS_DEPRECATED(ALIGN64 time_t last_active_checkpoint); /* 6018 */
-	SETTINGS_DEPRECATED(ALIGN64 UINT8 source_macaddr[6]); /* 6019 */
+	SETTINGS_DEPRECATED(ALIGN64 UINT64 source_macaddr); /* 6019 */
 
 	//------------------------------------ Debug and Profiling ----------------
 	//-------------------------------------------------------------
 
 	SETTINGS_DEPRECATED(ALIGN64 BOOL performance_analysis); /* 6020 */
 	SETTINGS_DEPRECATED(ALIGN64 BOOL debug_enabled); /* 6021 */
-	SETTINGS_DEPRECATED(ALIGN64 int num_monitors_detected); /* 6022 */
+	SETTINGS_DEPRECATED(ALIGN64 UINT32 num_monitors_detected); /* 6022 */
 	SETTINGS_DEPRECATED(ALIGN64 BOOL heartbeat_enabled); /* 6023 */
 	SETTINGS_DEPRECATED(ALIGN64 BOOL sync_loss_h1); /* 6024 */
 	SETTINGS_DEPRECATED(ALIGN64 BOOL sync_loss_h2); /* 6025 */
+
+	// Certificate
+	SETTINGS_DEPRECATED(ALIGN64 char* cert_file); /* 6026 */
+	SETTINGS_DEPRECATED(ALIGN64 char* privatekey_file); /* 6027 */
+	SETTINGS_DEPRECATED(ALIGN64 char* rdp_key_file); /* 6028 */
+
 	// Black Box (end)
 };
 

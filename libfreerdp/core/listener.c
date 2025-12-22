@@ -31,7 +31,7 @@
 
 #include <corrib_logger.h>
 
-#include "core_event.h"
+#include <freerdp/core_event.h>
 
 #ifndef _WIN32
 #include <netdb.h>

@@ -8,6 +8,7 @@
       "compileCommands": "/home/developer/Buildroot_emeraldse_encoder/buildroot/output/build/bb_server_emerald-custom/compile_commands.json",
       "includePath": [
         "${workspaceFolder}/**",
+        "/home/developer/Buildroot_emeraldse_encoder/buildroot/output/build/bb_server_emerald-custom/build/include/"
         // "/home/developer/Buildroot_emeraldse_encoder/buildroot/output/host/arm-buildroot-linux-gnueabihf/sysroot/usr/include"
       ],
       "defines": [

@@ -13,7 +13,7 @@
 #include <sys/mman.h>
 #include <time.h>
 #include <limits.h>
-// #include <restapi.h>
+#include <restapi.h>
 #include <freerdp/types.h>
 #include <freerdp/utils/event_queue.h>
 // #include <freerdp/utils/event_sender.h>
@@ -262,7 +262,7 @@ struct hw_manager_context
 
 	//-----------------------------------Statistics---------------------------
 	//------------------------------------------------------------------------
-	// VideoStatistics videoStatistics;
+	VideoStatistics videoStatistics;
 	// UsbAudioStatistics UsbaudioStatistics;
 	// AnalogAudioStatistics analogaudioStatistics;
 	// USBStatistics usbStatistics;

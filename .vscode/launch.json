@@ -1,0 +1,30 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Attach FreeRDP Server (remote)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "/home/developer/Buildroot_emeraldse_encoder/buildroot/output/staging/usr/bin/bbfreerdp-server",
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": true,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb-multiarch",
+            "miDebuggerServerAddress": "localhost:2345",
+            "sourceFileMap": {
+                "/home/developer/Buildroot_emeraldse_encoder/buildroot/output/build/bb_server_emerald-custom": "${workspaceFolder}"
+            },
+            "setupCommands": [
+                {
+                    "text": "set sysroot /home/developer/Buildroot_emeraldse_encoder/buildroot/output/build/"
+                },
+                {
+                    "text": "handle SIGILL nostop noprint pass"
+                },
+                {
+                    "text": "handle SIGPIPE nostop noprint pass"
+                }
+            ]
+        }
+    ]
+}
