@@ -1600,3 +1600,11 @@ printf("OK at %d\n", __LINE__);
 	freerdp_peer_context_free(client);
 	return FALSE;
 }
+
+void freerdp_peer_signal_multicast_info(freerdp_peer* client,
+										UINT32 connection_type,
+										const char* multicast_ip,
+										const int multicast_port) //FIXME need appropriate command at this point
+{
+	IFCALL(client->SignalMulticastInfo, client, connection_type);
+}

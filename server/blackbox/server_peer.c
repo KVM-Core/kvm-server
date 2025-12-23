@@ -14,6 +14,8 @@
 #include "server_peer.h"
 // #include "server_input.h"
 // #include "sh_settings.h"
+#include <freerdp/core_event.h>
+#include <freerdp/utils/event_queue.h>
 #include <corrib_logger.h>
 #include <system_utils.h>
 
@@ -337,7 +339,7 @@ static void * server_peer_main_loop(void * arg)
 					// {
 					// 	EventDesktopResize* event_desktop_resize = (EventDesktopResize*)event;
 					// 	rdpUpdate* update = client->update;
-					// 	update->DesktopResize(update->context,event_desktop_resize->width,
+					// 	update->DesktopResize(update->context,event_desktop_resizecontext->settings,
 					// 			event_desktop_resize->height,event_desktop_resize->refresh,event_desktop_resize->sync_loss,
 					// 			sp_context->client->video_slave_cid,sp_context->client->video_sequence_number);
 					// 	break;
@@ -521,6 +523,9 @@ static void server_peer_run(serverPeerContext* server_peer_context)
 }
 #endif
 
+//////////////////////////////////////////////
+// freerdp_peer callbacks
+//////////////////////////////////////////////
 BOOL server_peer_context_new(freerdp_peer* client, serverPeerContext* peer_context)
 {
 	bbPeerContext* bb_peer_context;
@@ -632,6 +637,936 @@ void server_peer_context_free(freerdp_peer* client, serverPeerContext* context)
 #endif
 }
 
+static BOOL server_peer_post_connect(freerdp_peer* client)
+{
+	serverPeerContext * sp_context = (serverPeerContext *)client->context;
+
+#if 0
+	int i;
+	serverPeerContext * sp_context = (serverPeerContext *)client->context;
+    #ifdef DEBUG_ENABLED
+	corrib_syslog (LOG_INFO,"Client %s is activated", client->hostname);
+    #endif
+	if (client->settings->autologon)
+	{
+		corrib_syslog(LOG_INFO,"%s autologon using:  %s %s ", __func__,
+			client->settings->domain ? client->settings->domain : "",
+			client->settings->username);
+	}
+
+	bb_usbr_debug("mode: %d", client->connection_mode);
+
+
+	//we send this irrespective of the client type as the secondary client also needs the null pointer message in order to disable the local cursor
+	rdpPointerUpdate* pointer = client->update->pointer;
+	pointer->pointer_system.type = SYSPTR_NULL;
+	//This should send a system type null for the mouse to disable the local cursor on the Barrow side
+	//IFCALL(pointer->PointerSystem, client->context, &pointer->pointer_system);
+	//corrib_syslog (LOG_INFO, "%s: client->settings->num_channels %d.\n", __func__, client->settings->num_channels);
+	for (i = 0; i < client->settings->num_channels; i++)
+	{
+		//corrib_syslog (LOG_INFO, "%s: client->settings->channels[%d].joined %d.\n", __func__, i, client->settings->channels[i].joined);
+		if (client->settings->channels[i].joined)
+		{
+			if (strncmp(client->settings->channels[i].name, "rdpsnd", 6) == 0)
+			{
+				//corrib_syslog(LOG_DEBUG, "%s: <><><><><><><><><>rdpsnd initialization for channel %s.\n", __func__, client->settings->channels[i].name);
+				//server_peer_rdpsnd_init(sp_context);
+				pthread_mutex_lock(&sp_context->rdpsnd_mutex);
+				sp_context->rdpsnd = rdpsnd_server_context_new(sp_context->vcm);
+				sp_context->rdpsnd->data = sp_context;
+				sp_context->rdpsnd->Activated = server_peer_rdpsnd_activated;
+				sp_context->rdpsnd->Initialize(sp_context->rdpsnd);
+				pthread_mutex_unlock(&sp_context->rdpsnd_mutex);
+				EventChannelReady* audio_channel_ready_event = event_channel_ready_new(client->settings->channels + i); //create an end event to inform the hardware manager that we have sent the command
+				eq_push(sp_context->peer_cm_queue, (eqEvent *)audio_channel_ready_event);
+			}
+            else if (strncmp(client->settings->channels[i].name, "drdynvc", 7) == 0)
+            { //ARPM: EXECUTES FIRST
+            	bb_usbr_debug("#### Initialization for channel %s ####", client->settings->channels[i].name);
+				server_peer_create_rdpeusb_context_and_set_cbs(sp_context, rdpeusb);
+			}
+		}
+	}
+#endif
+	return true;
+}
+
+static BOOL server_peer_signal_client_ready(freerdp_peer* client,
+												UINT32 connection_type,
+												BOOL preemption,
+												UINT8* domain_key,
+												UINT32 session_id,
+												char* loggedin_user)
+{
+	serverPeerContext * sp_context = (serverPeerContext *)client->context;
+	EventClientReady * client_ready_event = event_client_ready_new(client->sockfd,
+																	connection_type,
+																	preemption,
+																	domain_key,
+																	session_id,
+																	loggedin_user); //client id
+	eq_push(sp_context->peer_cm_queue, (eqEvent *)client_ready_event); //tell the connection manager about this
+#if DEBUG_ENABLED
+	corrib_syslog (LOG_INFO, "%s: client is ready event on queue\n", __func__);
+#endif
+	return true;
+}
+
+static BOOL server_peer_signal_multicast_info(freerdp_peer* client,
+												UINT32 multicast_status,
+												BOOL preemption,
+												UINT8* domain_key,
+												UINT32 session_id)
+{
+	serverPeerContext * sp_context = (serverPeerContext *)client->context;
+	EventConnectionInfo * connection_info = event_connection_info_new(client->sockfd, multicast_status); //client id
+	eq_push(sp_context->peer_cm_queue, (eqEvent *)connection_info); //tell the connection manager about this
+#if DEBUG_ENABLED
+	corrib_syslog (LOG_INFO,"%s:connection_info event on queue\n",__func__);
+#endif
+	return true;
+}
+
+static BOOL server_peer_signal_res_change_complete(freerdp_peer* client,
+												UINT32 multicast_status,
+												int head)
+{
+	serverPeerContext* sp_context = (serverPeerContext *)client->context;
+	if (!sp_context) {
+		corrib_syslog(LOG_DEBUG, "%s(): NULL pointer at %d\n", __func__, __LINE__);
+		return false;
+	}
+
+	EventResChangeComplete* client_res_change_complete = event_res_change_complete_new(client->sockfd, multicast_status); //client id
+	if (!client_res_change_complete)	{
+		corrib_syslog(LOG_DEBUG, "%s(): NULL pointer at %d\n", __func__, __LINE__);
+		return false;
+	}
+
+	bool sync_loss = false;
+
+	bbPeerContext* bb_peer_context;
+	bb_peer_context = (bbPeerContext* )client->ContextExtra;
+	if (!bb_peer_context) {
+		corrib_syslog(LOG_DEBUG, "%s(): NULL pointer at %d\n", __func__, __LINE__);
+		return;
+	}
+
+	client_res_change_complete->client = client;
+	client_res_change_complete->head = head;
+	corrib_syslog(LOG_DEBUG,"%s: multicast_status %u\n",__func__,multicast_status);
+	if(client->context->settings->performance_analysis)
+		client_res_change_complete->send_time = sh_log_get_mstime();
+
+	sync_loss = (client->context->settings->connection_resolution[head-1].width == 0) && (client->context->settings->connection_resolution[head-1].height == 0);
+
+	//we do not want to do this on a sync loss
+	if (sync_loss) //do not restart on sync loss only when we have video
+	{
+		corrib_syslog(LOG_DEBUG,"%s: sync loss on head %d\n", __func__, head);
+		client_res_change_complete->sync_loss =1;
+	}
+	else
+	{
+		client_res_change_complete->sync_loss = 0;
+		if(multicast_status)
+		{
+			//TODO MD Why are we setting this here?
+			bb_peer_context->connection_mode = MULTICAST_MODE;
+			// client->connection_mode = MULTICAST_MODE;
+		}
+		else
+		{
+			//This is a normal connection
+			// client->connection_mode = UNICAST_MODE;
+			bb_peer_context->connection_mode = UNICAST_MODE;
+			corrib_syslog (LOG_INFO,"Resolution change in %s %dx%d %dHz\n", __func__,
+								client->context->settings->connection_resolution[head-1].width,
+								client->context->settings->connection_resolution[head-1].height,
+								client->context->settings->connection_resolution[head-1].refresh);
+
+		}
+	}
+	eq_push(sp_context->peer_cm_queue, (eqEvent *)client_res_change_complete); //tell the connection manager about this
+#ifdef DEBUG_ENABLED
+	sh_syslog (LOG_INFO,"%s:client_ID:%s res change complete on queue\n",__func__,client->hostname);
+#endif
+	return true;
+}
+
+static BOOL server_peer_signal_access_status(freerdp_peer* client, ACCESS_STATUS status, char * username)
+{
+	serverPeerContext * sp_context = (serverPeerContext *)client->context;
+	EventAccessStatus * client_access_status = event_peer_access_status_new(client->sockfd,status);
+
+	strncpy(client_access_status->username, username, MAX_USERNAME_LENGTH);
+	client_access_status->access_status = status;
+	//corrib_syslog(LOG_DEBUG,"%s: access_status was %u\n",__func__,status);
+	if(client->context->settings->performance_analysis)
+		client_access_status->send_time = sh_log_get_mstime();
+
+	eq_push(sp_context->peer_cm_queue,(eqEvent *)client_access_status); //tell the connection manager about this
+	//corrib_syslog(LOG_DEBUG,"%s:client is ready event on queue\n",__func__);
+	return true;
+}
+
+static BOOL server_peer_signal_recovery_request(freerdp_peer* client, int head)
+{
+	serverPeerContext * sp_context = (serverPeerContext *)client->context;
+	EventRecoveryRequest * recovery_request = event_peer_recovery_request_new(client->sockfd,head);
+
+	if(client->context->settings->performance_analysis)
+		recovery_request->send_time = sh_log_get_mstime();
+
+	eq_push(sp_context->peer_cm_queue,(eqEvent *)recovery_request); //tell the connection manager about this
+	//corrib_syslog(LOG_DEBUG,"%s:client is ready event on queue\n",__func__);
+	return true;
+}
+
+BOOL server_peer_capabilities(freerdp_peer* client)
+{
+
+	return true;
+}
+
+BOOL server_peer_activate(freerdp_peer* client)
+{
+	serverPeerContext * sp_context = (serverPeerContext *)client->context;
+	//corrib_syslog(LOG_DEBUG,"%s: client_ID:%s \n",__func__,client->hostname);
+	//FIXME, we used to reset the RFX context here, its now done in the hardware manager but we need to understand how this
+	//is impacted by a resolution change
+	//rfx_context_reset(sp_context->rfx_context); //reset the frame index and reset the frame header indicator, only the first frame should send the header
+	sp_context->activated = true;
+	return true;
+}
+
+BOOL server_peer_signal(freerdp_peer* client)
+{
+	serverPeerContext * sp_context = (serverPeerContext *)client->context;
+
+	EventServerPeerReady * server_peer_ready_event = event_server_peer_ready_new(client->sockfd); //server peer id
+
+	corrib_syslog(LOG_DEBUG, "%s: Desktop Resize Complete...\n", __func__);
+
+	client->context->settings->DesktopWidth = client->context->settings->connection_resolution[FIRST_HEAD].width;
+	client->context->settings->DesktopHeight = client->context->settings->connection_resolution[FIRST_HEAD].height;
+
+	server_peer_ready_event->client = client;
+
+	eq_push(sp_context->peer_cm_queue, (eqEvent *)server_peer_ready_event); // tell the connection manager about this
+	return true;
+}
+
+BOOL server_peer_read_output_report(freerdp_peer* client)
+{
+	BOOL result = true;
+	//FIXME sh_read_and_process_outputReport(client);
+	return(result);
+}
+
+static void* server_peer_monitor_loop(void* arg)
+{
+	serverPeerContext* sp_context = (serverPeerContext* )arg;
+	if (!sp_context)
+	{
+		corrib_syslog(LOG_DEBUG, "%s(): NULL pointer at %d\n", __func__, __LINE__);
+		return;
+	}
+
+	freerdp_peer * client = sp_context->client;
+	if (!sp_context->client)
+	{
+		corrib_syslog(LOG_DEBUG, "%s(): NULL pointer at %d\n", __func__, __LINE__);
+		return;
+	}
+
+	sp_context->monitor_thread_running = true;
+	sp_context->monitor_thread_state = RUNNING;
+
+	while(sp_context->monitor_thread_running)
+	{
+		int ret;
+		fd_set rfds_set;
+		int sp_mon_queue_fd;
+		struct timeval tv = { .tv_sec = DEFAULT_INTERVAL_PERIOD, .tv_usec = 0 };
+
+		sp_mon_queue_fd = eq_get_queue_fd(sp_context->sp_mon_queue);
+		if (sp_mon_queue_fd < 1)
+		{
+			corrib_syslog(LOG_ERR,"%s: Failed to get sp_mon_queue file descriptor "
+														"for queue %p.\n",
+														__func__,
+														sp_context->sp_mon_queue);
+			break;
+		}
+
+		FD_ZERO(&rfds_set);
+		FD_SET(sp_mon_queue_fd, &rfds_set);
+
+		// Wait for next interval or an event from the main loop
+		ret = select(sp_mon_queue_fd + 1, &rfds_set, NULL, NULL, &tv);
+		if (ret == -1)
+		{
+			/* these are not really errors */
+			if (((errno == EAGAIN) ||
+			     (errno == EWOULDBLOCK) ||
+			     (errno == EINPROGRESS) ||
+			     (errno == EINTR))) /* signal occurred */
+				continue;
+
+			corrib_syslog(LOG_ERR,"%s: select failed on error: %s.\n",
+				      __func__,strerror(errno));
+			break;
+		}
+
+		// Check if main loop has sent a request to terminate
+		if (FD_ISSET(sp_mon_queue_fd, &rfds_set))
+		{
+			//read the queue
+			eqEvent* event = eq_pop(sp_context->sp_mon_queue);
+			if(event)
+			{
+				switch(event->type)
+				{
+				case EQ_EVENT_END:
+				{
+					// corrib_syslog(LOG_NOTICE,"%s: got an end event from server_peer, terminating.\n",
+					// 	      __func__);
+					eq_event_free(event); //free the event
+					goto exit;
+				}
+				default:
+					corrib_syslog(LOG_ERR,"%s: got an unknown event type:%p - %d...\n",
+						      __func__,event,event->type);
+					break;
+				}
+			}
+		} //sp_mon queue
+
+		time_t now = time(NULL);
+		bool link_active = peer_check_link_activity(client);
+
+		if (now >= client->context->settings->expiration_time)
+		{
+			/*
+			 * Keep-alive expired on RDP channel but if A/V channels are still
+			 * receiving traffic we shouldn't abort the connection.
+			 */
+			if (link_active ||
+			    (client->context->settings->last_active_checkpoint > (now - (2 * DEFAULT_INTERVAL_PERIOD))))
+			{
+				client->context->settings->expiration_time = now + DEFAULT_INTERVAL_PERIOD;
+				corrib_syslog(LOG_INFO, "%s: audio/video channel activity detected within last %u seconds, postponing keepalive expiry for %u seconds",
+					      __func__, (2 * DEFAULT_INTERVAL_PERIOD), DEFAULT_INTERVAL_PERIOD);
+			}
+			else
+			{
+				corrib_syslog(LOG_INFO, "%s: keepalive timeout expired and no received audio/video channel activity detected within last %u seconds, terminating connection",
+					      __func__, (2 * DEFAULT_INTERVAL_PERIOD));
+				corrib_syslog(LOG_ERR, "%s: NETWORK FAILURE (status expiration)\n",__func__);
+				/*
+				 * Disable the client socket to interrupt any socket read/write operations which may be blocking the main thread.
+				 * This will also trigger termination of the main or secondary threads as they call client->CheckFileDescriptor()
+				 * on each iteration, which will fail after the socket is disabled here.
+				 */
+				shutdown(client->sockfd, SHUT_RDWR);
+				goto exit;
+			}
+		}
+
+		if (client->context->settings->heartbeat_enabled)
+			corrib_syslog(LOG_DEBUG,"[P%d]",client->sockfd);
+	}
+
+exit:
+	sp_context->monitor_thread_running = false;
+	sp_context->monitor_thread_state = STOPPED;
+
+	pthread_exit(NULL);
+	return NULL;
+}
+
+
+static pthread_t server_peer_create_thread( void* func, void* arg,char thread_type[])
+{
+	pthread_t thread;
+	if(pthread_create(&thread, 0, func, arg) != 0)
+	{
+		perror("pthread:");
+		return -1;
+	}
+	else
+	{
+		//corrib_syslog(LOG_INFO,"Created %s thread for Server Peer\n",thread_type);
+		return thread;
+	}
+	return 0;
+}
+
+static void server_peer_set_specific_thread_priority(pthread_t thread_id, int new_policy,int new_priority)
+{
+	struct sched_param param;
+	int existing_policy;
+	pthread_attr_t thread_attributes;
+
+	pthread_attr_init(&thread_attributes);
+	pthread_attr_getschedpolicy(&thread_attributes, &existing_policy);
+
+
+	pthread_getschedparam(thread_id, &existing_policy, &param);
+	//printf("thread 1: existing policy=%1d, priority=%d\r\n",existing_policy,param.sched_priority);
+	param.sched_priority = sched_get_priority_min(existing_policy) +1;
+	pthread_setschedparam(thread_id, new_policy, &param);
+	pthread_setschedprio(thread_id, new_priority);
+
+	pthread_getschedparam(thread_id, &existing_policy, &param);
+	//printf("thread 2: existing policy=%1d, priority=%d\r\n",existing_policy,param.sched_priority);
+	pthread_attr_destroy(&thread_attributes);
+}
+
+void server_peer_get_timeout_interval(freerdp_peer* client, struct timeval* tv)
+{
+	if(client != NULL && tv != NULL)
+	{
+		time_t now = time(NULL);
+
+		if(client->context->settings->interval_time > now && client->context->settings->expiration_time > now )
+		{
+			tv->tv_sec = client->context->settings->expiration_time <= client->context->settings->interval_time ?
+						 client->context->settings->expiration_time - now: client->context->settings->interval_time - now;
+			tv->tv_usec = 0;
+		}
+		else
+		{
+			memset(tv, 0x00, sizeof(struct timeval));
+		}
+
+	}
+}
+
+/*
+ * This needs to be capable of getting all of the associated fds including those supplied by the client peer
+ */
+static BOOL server_peer_get_main_fds(serverPeerContext* sp_context, void** rfds, int* rcount)
+{
+// 	freerdp_peer * client = sp_context->client;
+// 	assert(client);
+// 	if(*rcount > MAX_FDS)
+// 	{
+// 		corrib_syslog(LOG_ERR,"server peer has exceeded maximum file descriptors (%d) in %s\n",MAX_FDS, __func__);
+// 		return false;
+// 	}
+// 	//get the queue FD from the connection_manager as we must process those events
+// 	int fd_cm_peer = eq_get_queue_fd(sp_context->cm_peer_queue);
+// 	if(fd_cm_peer < 1)
+// 	{
+// 		corrib_syslog(LOG_ERR,"%s: Failed to get cm_queue file descriptor for queue %p.\n", __func__,sp_context->cm_peer_queue);
+// 		return false;
+// 	}
+// 	else
+// 	{
+// 		rfds[*rcount] = (void*)(long)(fd_cm_peer);
+// 		(*rcount)++;
+// 	}
+// 	int sp_sp_peer = eq_get_queue_fd(sp_context->sp_sp_queue);
+// 	if (sp_sp_peer < 1)
+// 	{
+// 		corrib_syslog(LOG_ERR,"%s: Failed to get sp_sp_queue file descriptor for queue %p.\n", __func__,sp_context->sp_sp_queue);
+// 		return false;
+// 	}
+// 	else
+// 	{
+// 		rfds[*rcount] = (void*)(long)(sp_sp_peer);
+// 		(*rcount)++;
+// 	}
+
+// 	if (/*sp_context->*/rdpeusb)
+// 	{
+// 		/*sp_context->*/rdpeusb->GetFileDescriptors(/*sp_context->*/rdpeusb, rfds, rcount);
+// 	}
+// pthread_mutex_lock(&sp_context->rdpsnd_mutex);
+// 	if(sp_context->rdpsnd || /*sp_context->*/rdpeusb)
+// 	{
+// 		//printf("%s: Getting Virtual fds.\n", __func__);
+// 		WTSVirtualChannelManagerGetFileDescriptor(sp_context->vcm, rfds, rcount);
+// 	}
+// pthread_mutex_unlock(&sp_context->rdpsnd_mutex);
+// #ifndef TWO_THREADS
+// 	if(client->GetFileDescriptor(client, rfds, rcount) != true)
+// 	{
+// 		corrib_syslog(LOG_ERR,"%s: Failed to get FreeRDP file descriptor.\n", __func__);
+// 		return false;
+// 	}
+
+// #endif
+
+	return true;
+}
+
+static void server_peer_deinit(serverPeerContext* sp_context)
+{
+	int i = 0;
+	UINT32 usb_commands_found = 0;
+	UINT32 surface_commands_found = 0;
+// #ifdef SHARED_MODE_DEBUG
+// 	corrib_syslog(LOG_DEBUG,"%s Looking for events to purge",__func__);
+// #endif
+// 	if (sp_context && sp_context->cm_peer_queue != NULL ) {
+		
+// 		// server_peer_release_rdpeusb_context(sp_context,rdpeusb);
+// 		/* Purge queues */
+// 		for ( i = 0; i < sp_context->cm_peer_queue->count; i++ ) {
+// 			eqEvent* event = eq_pop(sp_context->cm_peer_queue);
+// 			switch (event->type) {
+// 				case EQ_EVENT_SURFACE_COMMAND_AVAILABLE:
+// 				{
+// 					EventSurfaceCommandAvailable * surface_command_available_event= (EventSurfaceCommandAvailable *)event;
+
+// 					EventSurfaceCommandComplete* surface_command_complete_event = event_surface_command_complete_clone_from_available_command(surface_command_available_event);
+// 					surface_command_complete_event->command_id = surface_command_available_event->command_id;
+// 					//		event_surface_command_sent_new(surface_command_available_event->head_id,surface_command_available_event->frame_type,surface_command_available_event->frame_number,surface_command_available_event->cmd); //create an end event to inform the hardware manager that we have sent the command
+// 					eq_push(sp_context->peer_cm_queue, (eqEvent *)surface_command_complete_event);
+// 					surface_commands_found++;
+// 					sp_context->surface_commands_is_use--;
+// #ifdef SHARED_MODE_DEBUG
+// 					corrib_syslog(LOG_DEBUG,"%s purging EQ_EVENT_SURFACE_COMMAND_COMPLETE in server_peer",__func__);
+// #endif
+// 					break;
+// 				}
+// 				// case EQ_EVENT_USB_COMMAND_AVAILABLE:
+// 				// {
+// 				// 	EventUsbCommandAvailable *usb_command_available_event = (EventUsbCommandAvailable *)event;
+// 				// 	usb_command_available_event->sequence_data->type = USBSQT_RELEASE_COMMAND;
+// 				// 	eq_push(sp_context->peer_cm_queue, (eqEvent *)usb_command_available_event); //ARPM: deinit
+// 				// 	usb_commands_found++;
+// 				// 	break;
+// 				// }
+// 				// case EQ_EVENT_AUDIO_COMMAND_AVAILABLE:
+// 				// {
+// 				// 	/*
+// 				// 	 * Jira BUG-2473:
+// 				// 	 * ARPM: If there are audio commands queued to the peer is leaving the session then it is required to
+// 				// 	 * release the memory they are holding. Those commands will die here, I won't send them back to connection
+// 				// 	 * manager.
+// 				// 	 */
+// 				// 	EventAudioCommandAvailable* audio_command_available_event = (EventAudioCommandAvailable *)event;
+// 				// 	event_audio_command_available_free(audio_command_available_event);
+// 				// 	break;
+// 				// }
+// 				default:
+// 				{
+// 					corrib_syslog(LOG_DEBUG, "%s(): ### Unknown event found in cm->peer queue [event: %d]. Releasing header. TODO: Release it properly depending on event->type. ###\n", __func__, event->type);
+// 					eq_event_free((eqEvent *)event); //free the event
+// 					break;
+// 				}
+// 			}
+// 			/* ARPM: We shouldn't free events at this stage. They have to be consumed by connection manager */
+// 		}
+//         #ifdef DEBUG_ENABLED
+// 		corrib_syslog (LOG_INFO, "%s(): Cleaning remaining commands in cm->peer queue. Found %u usb_commands and %u surface_commands", __func__, usb_commands_found, surface_commands_found);
+//         #endif
+// 	}
+}
+
+/*
+ * The server peer must monitor multiple queues, one from the listner, one from the hardware manager, and one from each peer
+ */
+static void * server_peer_main_loop(void * arg)
+{
+	int i;
+	int fds;
+	int max_fds;
+	int rcount;
+	void* rfds[32];
+	fd_set rfds_set;
+	struct timeval tv = {.tv_sec = DEFAULT_INTERVAL_PERIOD, .tv_usec = 0};
+	int num_set;
+	BOOL monitor_keepalives;
+
+	serverPeerContext* sp_context = (serverPeerContext* )arg;
+	if (!sp_context)
+	{
+		corrib_syslog(LOG_DEBUG, "%s(): NULL pointer at %d\n", __func__, __LINE__);
+		return;
+	}
+
+	freerdp_peer * client = sp_context->client;
+	if (!sp_context->client)
+	{
+		corrib_syslog(LOG_DEBUG, "%s(): NULL pointer at %d\n", __func__, __LINE__);
+		return;
+	}
+
+	bbPeerContext* bb_peer_context;
+	bb_peer_context = (bbPeerContext* )client->ContextExtra;
+	if (!bb_peer_context) {
+		corrib_syslog(LOG_DEBUG, "%s(): NULL pointer at %d\n", __func__, __LINE__);
+		return;
+	}
+
+	sp_context->main_thread_running = true;
+	
+	assert(client);
+	memset(rfds, 0, sizeof(rfds));
+	
+	sp_context->main_thread_state = RUNNING;
+
+	monitor_keepalives = (client->context->settings->keepalive.info_flags != 0);
+
+	int testRDPEUSB = 0;
+	int testRDPSND = 0;
+
+	if (monitor_keepalives)
+	{
+		/*
+		 * Spawn a separate monitor thread to check for expiry of keep-alive messages
+		 * received from the remote peer which would indicate loss of connectivity.
+		 *
+		 * A separate thread is needed to avoid having these checks delayed by blocking
+		 * I/O operations such as a socket send() which can be blocked for up to 15
+		 * minutes when a network link goes down.
+		 */
+		sp_context->monitor_thread = server_peer_create_thread(server_peer_monitor_loop,
+								       							sp_context,
+																"monitor");
+		if (sp_context->monitor_thread == -1)
+		{
+			corrib_syslog(LOG_ERR, "%s: failed to create monitor thread: %s\n",
+				      __func__, strerror(errno));
+			goto exit;
+		}
+		server_peer_set_specific_thread_priority(sp_context->monitor_thread, SCHED_RR, 0);
+	}
+
+	//corrib_syslog(LOG_INFO,"Starting server main loop for peer %s in %s\n",sp_context->client->hostname,__func__);
+
+	while(sp_context->main_thread_running)
+	{
+
+		rcount = 0;
+		server_peer_get_timeout_interval(client, &tv);
+		if (server_peer_get_main_fds(sp_context, rfds, &rcount) != true)
+		{
+			corrib_syslog(LOG_ERR,"Failed to get server peer file descriptors in %s\n",__func__);
+			sp_context->main_thread_running = false;
+			sp_context->main_thread_state = STOPPED;
+			break;
+		}
+		max_fds = 0;
+		FD_ZERO(&rfds_set);
+
+		for (i = 0; i < rcount; i++)
+		{
+			fds = (int)(long)(rfds[i]);
+
+			if (fds > max_fds)
+				max_fds = fds;
+
+			FD_SET(fds, &rfds_set);
+		}
+
+		if (max_fds == 0)
+		{
+			sp_context->main_thread_running = false;
+			sp_context->main_thread_state = STOPPED;
+			corrib_syslog(LOG_ERR,"max fds are zero in %s\n",__func__);
+			break;
+		}
+		num_set = select(max_fds + 1, &rfds_set, NULL, NULL, &tv);
+		if(num_set == -1)
+		{
+			/* these are not really errors */
+			if (!((errno == EAGAIN) ||
+				(errno == EWOULDBLOCK) ||
+				(errno == EINPROGRESS) ||
+				(errno == EINTR))) /* signal occurred */
+			{
+				corrib_syslog(LOG_ERR,"%s: select failed on error: %s.\n",  __func__, strerror(errno));
+				sp_context->main_thread_running = false;
+				sp_context->main_thread_state = STOPPED;
+				//corrib_syslog(LOG_INFO,"%s:checking queue for outstanding events.",__func__);
+				//server_peer_deinit(sp_context);
+				break;
+			}
+		} //everything is as we expected
+		else
+		{
+			int cm_peer_fd = eq_get_queue_fd(sp_context->cm_peer_queue);
+#ifndef TWO_THREADS
+			if (client->CheckFileDescriptor(client) != true)  //this is the checking of the actual RDP transport 
+			{
+				corrib_syslog(LOG_INFO,"%s: Failed to check freerdp file descriptor for Peer, terminating peer. The peer may have left the connection\n", __func__);
+				/* this can indicate a loss of connection to the client side */
+				sp_context->main_thread_running = false;
+				sp_context->main_thread_state = STOPPED;
+				//okay we are terminating the connection for known or unknown reasons
+				//we need to encure there are no outstanding signals that need to be processed before we go
+				//search the queue for the relevant events and act on them if required
+				//corrib_syslog(LOG_INFO,"%s:checking queue for outstanding events.",__func__);
+				//server_peer_deinit(sp_context);
+				break;
+			}
+#endif
+			if (FD_ISSET(cm_peer_fd, &rfds_set)) //need to figure out which queue has fired
+			{
+				//read the queue
+				eqEvent* event = eq_pop(sp_context->cm_peer_queue);
+				if(event)
+				{
+					// if(sp_context->client->context->settings->performance_analysis)
+					// {
+					// 	event->receive_time = sh_log_get_mstime();
+					// }
+					switch(event->type)
+					{
+					case EQ_EVENT_END: //this is only issued by the secondary_peer
+						//corrib_syslog(LOG_INFO,"%s: got an end event, terminating.\n",  __func__,strerror(errno));
+						sp_context->main_thread_running = false;
+						sp_context->main_thread_state = STOPPED;
+						//corrib_syslog(LOG_INFO,"%s:checking queue for outstanding events.",__func__);
+						//server_peer_deinit(sp_context);
+						eq_push(sp_context->sp_sp_queue, (eqEvent *)event);
+						break;
+					case EQ_EVENT_ERROR_INFO:
+					{
+						EventErrorInfo * event_error_info = (EventErrorInfo *)event;
+						corrib_syslog(LOG_ERR,"Sending client error info: %d\n",event_error_info->error_code);
+						// client->SendErrorInfoData(client,event_error_info->error_code);
+						break;
+					}
+					case EQ_EVENT_AUDIO_COMMAND_AVAILABLE:
+					{
+// #if 0
+// 						//corrib_syslog(LOG_DEBUG,"server_peer_main_loop: GOT AUDIO COMMAND\n");
+// #endif
+// 						EventAudioCommandAvailable *audio_command_available_event = (EventAudioCommandAvailable *)event;
+// 						assert(sp_context);
+// 						pthread_mutex_lock(&sp_context->rdpsnd_mutex);
+// 						if(sp_context->rdpsnd != NULL)
+// 							sp_context->rdpsnd->ProcessCommand(sp_context->rdpsnd, audio_command_available_event->cmd);
+// 						pthread_mutex_unlock(&sp_context->rdpsnd_mutex);
+// 						audio_data_command_free(audio_command_available_event->cmd);
+// 						break;
+					}
+					case EQ_EVENT_USB_COMMAND_AVAILABLE:
+					{
+						// bb_usbr_debug("sp_context: %p /*sp_context->*/rdpeusb: %p", sp_context, /*sp_context->*/rdpeusb);
+						// EventUsbCommandAvailable *usb_command_available_event = (EventUsbCommandAvailable *)event;
+
+
+						// if(/*sp_context->*/rdpeusb != NULL)
+						// {
+						// 	if(/*sp_context->*/rdpeusb->ProcessHostCommand(/*sp_context->*/rdpeusb,
+						// 												usb_command_available_event->sequence_data,
+						// 												usb_command_available_event->device_id,
+						// 												usb_command_available_event->cmd))
+						// 	{
+						// 		/* UnRecoverable Error Processing USB Command - exit connection ... */
+						// 		corrib_syslog(LOG_ERR,"Error Processing USB Command ...............in. %s\n",__func__);
+						// 		//sp_context->main_thread_running = false;
+						// 		//sp_context->main_thread_state = STOPPED;
+						// 		//break;
+						// 	}
+						// }
+						// else
+						// {
+						// 	bb_usbr_debug("/*sp_context->*/rdpeusb is NULL: Releasing USB event");
+						// 	usb_command_available_event->sequence_data->type = USBSQT_RELEASE_COMMAND;
+						// 	eq_push(sp_context->peer_cm_queue, (eqEvent *)usb_command_available_event);
+						// 	event = NULL;
+						// 	//usb_command_free(usb_command_available_event->cmd);
+						// }
+						// break;
+					}
+					case EQ_EVENT_DESKTOP_RESIZE:
+					{
+						// EventDesktopResize* event_desktop_resize = (EventDesktopResize*)event;
+						// rdpUpdate* update = client->update;
+						// update->DesktopResize(update->context,event_desktop_resizecontext->settings,
+						// 		event_desktop_resize->height,event_desktop_resize->refresh,event_desktop_resize->sync_loss,
+						// 		sp_context->client->video_slave_cid,sp_context->client->video_sequence_number);
+						break;
+					}
+					default:
+						corrib_syslog(LOG_ERR, "%s: got an unknown event type:%d.\n",  __func__,event->type);
+						break;
+					}
+					eq_event_free(event); //free the event
+				}
+			} //cm_peer event
+
+			int sp_sp_fd = eq_get_queue_fd(sp_context->sp_sp_queue);
+			if (FD_ISSET(sp_sp_fd, &rfds_set)) //need to figure out which queue has fired
+			{
+				//read the queue
+				eqEvent* event = eq_pop(sp_context->sp_sp_queue);
+				// if(sp_context->client->context->settings->performance_analysis)
+				// {
+				// 	event->receive_time = sh_log_get_mstime();
+				// }
+				if(event)
+				{
+					switch(event->type)
+					{
+						case EQ_EVENT_END:
+						{
+							corrib_syslog(LOG_NOTICE, "%s: got an end event from sp_sp queue, terminating.\n",  __func__);
+							bb_peer_context->terminating = true;
+							sp_context->main_thread_running = false;
+							sp_context->main_thread_state = STOPPED;
+							//corrib_syslog(LOG_INFO,"%s:checking queue for outstanding events.",__func__);
+							//server_peer_deinit(sp_context);
+							eq_event_free(event); //free the event
+							break;
+						}
+						default:
+							corrib_syslog(LOG_ERR,"%s: got an unknown event type:%d..\n",  __func__,event->type);
+							break;
+					}
+				}
+			} //sp_sp queue
+
+			// if (sp_context->main_thread_running) //ARPM: Checking USBR file descriptors
+			// {
+			// 	if (WTSVirtualChannelManagerCheckFileDescriptor(sp_context->vcm))
+			// 	{
+			// 		pthread_mutex_lock(&sp_context->rdpsnd_mutex);
+			// 		if (sp_context->rdpsnd)
+			// 		{
+			// 			if (!sp_context->rdpsnd->CheckFileDescriptor(sp_context->rdpsnd))
+			// 			{
+			// 				testRDPSND = -1;
+			// 				corrib_syslog(LOG_ERR,"%s DEBUG_ENABLEDs: Failed to read rdpsnd file descriptor.\n", __func__);
+			// 				break;
+			// 			}
+			// 		}
+			// 		pthread_mutex_unlock(&sp_context->rdpsnd_mutex);
+			// 		if (/*sp_context->*/rdpeusb)
+			// 		{
+			// 			if (!/*sp_context->*/rdpeusb->CheckFileDescriptors(/*sp_context->*/rdpeusb))
+			// 			{
+			// 				testRDPEUSB = -1;
+			// 				corrib_syslog(LOG_ERR,"%s: Failed to read rdpeusb file descriptor.\n", __func__);
+			// 				break;
+			// 			}
+			// 		}
+			// 	}
+			// }
+		}
+
+		if ((tv.tv_sec == 0) && (tv.tv_usec == 0))
+		{
+			client->context->settings->interval_time = time(NULL) + DEFAULT_INTERVAL_PERIOD;
+
+			/* Send a new keepalive message periodically to the remote peer to
+			 * let them know we're still connected. */
+			if (client->activated)
+				peer_send_cloudium_pdu(client);
+		}
+	} //end of while loop
+
+exit:
+#ifdef DEBUG_ENABLED
+	corrib_syslog(LOG_DEBUG, "%s: Main Loop terminating: DEV FLAGS - testRDPSND: %d testRDPEUSB: %d\n", __func__, testRDPSND, testRDPEUSB);
+
+	corrib_syslog(LOG_DEBUG,"%s:main_loop terminating: sp_context->main_thread_running =%d",__func__,sp_context->main_thread_running );
+#endif
+	//we now need to free any resources associated with this client
+	//The connection manager created the queues for this peer so it is responsible for purging and destroying the queues
+	//The CM needs to know about this event because it may need to inform multicast layers and or multiple unicast connections and in any event remove the peer from the list of active peers
+
+	//if(sp_context->secondary_thread_running)
+	//{
+	//	//corrib_syslog(LOG_INFO,"%s:requesting secondary thread to complete.",__func__);
+	//	EventEnd* event_end = event_end_new();
+	//	eq_push(sp_context->sp_sp_queue, (eqEvent *)event_end);
+	//	//corrib_syslog(LOG_INFO,"%s:complete pushed.",__func__);
+	//	while(sp_context->secondary_thread_running) { printf("."); sleep(1); }
+	//}
+
+	if (monitor_keepalives)
+	{
+#ifdef DEBUG_ENABLED
+		corrib_syslog(LOG_INFO, "%s: requesting monitor thread to complete.", __func__);
+#endif
+		EventEnd* event_end = event_end_new();
+		eq_push(sp_context->sp_mon_queue, (eqEvent *)event_end);
+		pthread_join(sp_context->monitor_thread, NULL);
+	}
+
+	// bb_usbr_debug("#### server_peer_deinit ####");
+	server_peer_deinit(sp_context);
+
+
+	//TODO RMC, need to add the peer_cide to this event
+	EventPeerTerminated* peer_terminated_event =  event_peer_terminated_new(client->sockfd,0); //create an end event to stop the hardware manager
+	peer_terminated_event->frame_processing_h1 = sp_context->frame_processing_h1;
+	peer_terminated_event->frame_processing_h2 = sp_context->frame_processing_h2;
+	eq_push(sp_context->peer_cm_queue, (eqEvent *)peer_terminated_event);
+
+	pthread_exit(NULL);
+	return NULL;
+
+}
+
+//Main Processing Loop and thread management
+//-------------------------------------------
+static void server_peer_run(serverPeerContext* server_peer_context)
+{
+    int main_thread_wait_count = 0;
+
+    if(server_peer_context)
+    {
+
+        server_peer_context->main_thread = server_peer_create_thread(server_peer_main_loop, server_peer_context, "main");
+#ifdef TWO_THREADS
+        //
+        // The code logic requires the 'main_loop' to be running before the 'secondary_loop' (BUG-6088)
+        // This addition will ensure that this always happens.
+        // 
+        while((!server_peer_context->main_thread_running) && (main_thread_wait_count < MAX_ML_WAIT_COUNT))
+        {
+            usleep(200);
+            main_thread_wait_count += 1;
+        }
+        corrib_syslog(LOG_DEBUG,"%s():- Waited (200 * %d (ns))for server_peer_main_thread to start before starting server_peer_secondary_thread.",__func__,main_thread_wait_count);
+
+        if(main_thread_wait_count == MAX_ML_WAIT_COUNT)
+        {
+            corrib_syslog(LOG_ERR,"%s():- server_peer_main_thread hasn't started within the wait time - continuing in any case...",__func__);
+        }
+
+        server_peer_context->secondary_thread = server_peer_create_thread(server_peer_secondary_loop,server_peer_context,"secondary");
+#endif
+        if(server_peer_context->main_thread == -1 || (server_peer_context->secondary_thread == -1))
+        {
+            corrib_syslog(LOG_ERR,"Server Peer could not create threads in %s, terminating\n",__func__);
+            exit(0);
+        }
+        else
+        {
+            pthread_detach(server_peer_context->main_thread);
+#ifdef TWO_THREADS
+            pthread_detach(server_peer_context->secondary_thread);
+#endif
+        }
+#ifdef TWO_THREADS
+        server_peer_set_specific_thread_priority(server_peer_context->main_thread,SCHED_RR,0); //set the video thread as low as possible
+        server_peer_set_specific_thread_priority(server_peer_context->secondary_thread,SCHED_FIFO,99); //set the mouse handling as high as possible
+#else
+        server_peer_set_specific_thread_priority(server_peer_context->main_thread,SCHED_FIFO,99);
+#endif
+        //server_peer_set_specific_thread_priority(server_peer_context->secondary_thread,SCHED_RR,0); //set the video thread as high as possible
+        //server_peer_set_specific_thread_priority(server_peer_context->main_thread,SCHED_FIFO,99); //set the mouse handling as low as possible
+    }
+    else
+	{
+        corrib_syslog(LOG_ERR, "Server Context not initialised in %s\n", __func__);
+	}
+
+}
+
 void server_peer_init(freerdp_peer* client, cmContext* cm_context)
 {
 	bbPeerContext* bb_peer_context;
@@ -690,6 +1625,42 @@ void server_peer_init(freerdp_peer* client, cmContext* cm_context)
 	settings->privatekey_file = xstrdup("/opt/blackbox/shfreerdp/server.key");
 	settings->rdp_key_file = xstrdup("/opt/blackbox/shfreerdp/rdp.key");
 	corrib_syslog(LOG_DEBUG, "%s(): at %d\n", __func__, __LINE__);
+	client->PostConnect = server_peer_post_connect;
+	client->SignalClientReady = server_peer_signal_client_ready;
+	client->SignalMulticastInfo = server_peer_signal_multicast_info;
+	client->SignalResChangeComplete = server_peer_signal_res_change_complete;
+	client->SignalAccessStatus = server_peer_signal_access_status;
+	client->SignalRecoveryRequest = server_peer_signal_recovery_request;
+
+	client->Capabilities = server_peer_capabilities;
+	client->Activate = server_peer_activate;
+	client->Signal = server_peer_signal;
+	client->ReadOutputReport = server_peer_read_output_report;
+	bb_peer_context->video_channel = -1;
+	bb_peer_context->audio_channel = -1;
+	bb_peer_context->video_slave_cid = 0;
+	bb_peer_context->audio_slave_cid = 0;
+	bb_peer_context->last_rtt = 0;
+	bb_peer_context->last_mss = 0;
+
+	//ARPM Uncomment server_input_register_callbacks(client->input);
+
+	bb_peer_context->connection_state = PEER_CONNECTION_STATE_INIT;
+	client->Initialize(client);
+	//---------------------------------------
+#ifdef MEMORY_ALLOCATION_MONITOR
+    char id[255];
+    snprintf(id,255,"%s_sp_sp_queue",__func__);
+    sp_context->sp_sp_queue = eq_queue_new(id);
+    snprintf(id,255,"%s_sp_mon_queue",__func__);
+    sp_context->sp_mon_queue = eq_queue_new(id);
+#else
+    sp_context->sp_sp_queue = eq_queue_new();
+    sp_context->sp_mon_queue = eq_queue_new();
+#endif
+    eq_set_name(sp_context->sp_sp_queue,"sp_sp_queue");
+    eq_set_name(sp_context->sp_mon_queue,"sp_mon_queue");
+	server_peer_run(sp_context);
 #if 0
 	settings->nla_security = false;
 	settings->rfx_codec = true;
@@ -1234,7 +2205,7 @@ boolean server_peer_signal(freerdp_peer* client)
 	serverPeerContext * sp_context = (serverPeerContext *)client->context;
 	EventServerPeerReady * server_peer_ready_event = event_server_peer_ready_new(client->sockfd); //server peer id
 	//corrib_syslog(LOG_DEBUG,"%s:Desktop Resize Complete....\n",__func__);
-	client->settings->width = client->settings->connection_resolution[FIRST_HEAD].width;
+	client->settingscontext->settings = client->settings->connection_resolution[FIRST_HEAD].width;
 	client->settings->height = client->settings->connection_resolution[FIRST_HEAD].height;
 	server_peer_ready_event->client = client;
 	eq_push(sp_context->peer_cm_queue,(eqEvent *)server_peer_ready_event); //tell the connection manager about this
@@ -1803,7 +2774,7 @@ static void * server_peer_main_loop(void * arg)
 					{
 						EventDesktopResize* event_desktop_resize = (EventDesktopResize*)event;
 						rdpUpdate* update = client->update;
-						update->DesktopResize(update->context,event_desktop_resize->width,
+						update->DesktopResize(update->context,event_desktop_resizecontext->settings,
 								event_desktop_resize->height,event_desktop_resize->refresh,event_desktop_resize->sync_loss,
 								sp_context->client->video_slave_cid,sp_context->client->video_sequence_number);
 						break;

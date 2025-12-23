@@ -461,7 +461,7 @@ struct event_peer_access_status
 	//------ all events must start with these members
 	int peer_id;
 	ACCESS_STATUS access_status;
-	// char username[MAX_USERNAME_LENGTH];
+	char username[MAX_USERNAME_LENGTH];
 
 
 };

@@ -33,9 +33,12 @@
 #include <winpr/winsock.h>
 #include <winpr/secapi.h>
 
+// Black Box (begin)
+#include <freerdp/core_event.h>
 #include <freerdp/connection_manager.h>
 #include <freerdp/hardware_manager.h>
 #include <textfields.h>
+// Black Box (end)
 
 #ifdef __cplusplus
 extern "C"
@@ -112,6 +115,16 @@ extern "C"
 	} LicenseCallbackResult;
 
 	typedef LicenseCallbackResult (*psPeerLicenseCallback)(freerdp_peer* peer, wStream* s);
+
+	typedef BOOL (*psPeerSignal)(freerdp_peer* client);
+	typedef BOOL (*psPeerSignalClientReady)(freerdp_peer* client, UINT32 status, BOOL preemption, UINT8 * domain_key, UINT32 session_id, char * loggedin_user);
+	typedef BOOL (*psPeerSignalResChangeComplete)(freerdp_peer* client, UINT32 status, int head);
+	typedef BOOL (*psPeerSignalMulticastInfo)(freerdp_peer* client, UINT32 status);
+	typedef BOOL (*psPeerSignalAccessStatus)(freerdp_peer* client, ACCESS_STATUS access_status, char * username);
+	typedef BOOL (*psPeerSignalRecoveryRequest)(freerdp_peer* client, int head);
+	typedef BOOL (*psPeerSendCloudiumMessage)(freerdp_peer* client1, UINT32 command, freerdp_peer* client2, char * username);
+
+	typedef BOOL (*psPeerOutputReport)(freerdp_peer* client);
 
 	struct rdp_freerdp_peer
 	{
@@ -207,86 +220,99 @@ extern "C"
 		 * and supplementary creds (NTLM).
 		 */
 		ALIGN64 psPeerRemoteCredentials RemoteCredentials;
+
+		// Black Box (begin)
+		psPeerSignal Signal;
+		psPeerSignalClientReady SignalClientReady;
+		psPeerSignalResChangeComplete SignalResChangeComplete;
+		psPeerSignalMulticastInfo SignalMulticastInfo;
+		psPeerSignalAccessStatus SignalAccessStatus;
+		psPeerSignalRecoveryRequest SignalRecoveryRequest;
+		psPeerSendCloudiumMessage SendCloudiumMessage; //server_peer_send_cloudium_message
+
+		psPeerOutputReport ReadOutputReport;
+		// Black Box (end)
+
 	};
 
 // Black Box (begin)
 
-typedef enum {PRIMARY_PEER, TEMPORARY_PEER} rdp_peer_type;
+	typedef enum {PRIMARY_PEER, TEMPORARY_PEER} rdp_peer_type;
 
-typedef enum {
-	PEER_CONNECTION_STATE_INIT = 0,   // Connection request received
-	PEER_CONNECTION_STATE_ACCEPTED,   // Connection accepted
-	PEER_CONNECTION_STATE_STARTING,   // Connection audio/video setup in progress
-	PEER_CONNECTION_STATE_RUNNING,    // Connection up, audio/video active
-} rdp_peer_connection_state;
+	typedef enum {
+		PEER_CONNECTION_STATE_INIT = 0,   // Connection request received
+		PEER_CONNECTION_STATE_ACCEPTED,   // Connection accepted
+		PEER_CONNECTION_STATE_STARTING,   // Connection audio/video setup in progress
+		PEER_CONNECTION_STATE_RUNNING,    // Connection up, audio/video active
+	} rdp_peer_connection_state;
 
-typedef enum {
-	PEER_VIDEO_STATE_ACTIVE = 1,     // normal state (video active)
-	PEER_VIDEO_STATE_SYNC_LOSS,  // sync loss (video stopped)
-	PEER_VIDEO_STATE_RES_CHANGE, // res-change in progress (video restarting)
-} rdp_peer_video_state;
+	typedef enum {
+		PEER_VIDEO_STATE_ACTIVE = 1,     // normal state (video active)
+		PEER_VIDEO_STATE_SYNC_LOSS,  // sync loss (video stopped)
+		PEER_VIDEO_STATE_RES_CHANGE, // res-change in progress (video restarting)
+	} rdp_peer_video_state;
 
-typedef struct freerdp_secondary_peer freerdpSecondaryPeer;
-/* Structure for list of secondary peers used to send data */
-struct freerdp_secondary_peer
-{
-	int status;
-	struct sockaddr_in peer_sockaddr;
-	freerdp_peer* freerdp_peer;
-	struct freerdp_secondary_peer * next_secondary_peer;
-};
+	typedef struct freerdp_secondary_peer freerdpSecondaryPeer;
+	/* Structure for list of secondary peers used to send data */
+	struct freerdp_secondary_peer
+	{
+		int status;
+		struct sockaddr_in peer_sockaddr;
+		freerdp_peer* freerdp_peer;
+		struct freerdp_secondary_peer * next_secondary_peer;
+	};
 
-typedef struct blackbox_peer_context bbPeerContext;
+	typedef struct blackbox_peer_context bbPeerContext;
 
-struct blackbox_peer_context {
-	rdpInput* input;
-	rdpUpdate* update;
-	rdpSettings* settings;
+	struct blackbox_peer_context {
+		rdpInput* input;
+		rdpUpdate* update;
+		rdpSettings* settings;
 
-	eqEventQueue* cm_peer_queue; //will be populated by the connection manager
-	eqEventQueue* peer_cm_queue; //created by the peer
+		eqEventQueue* cm_peer_queue; //will be populated by the connection manager
+		eqEventQueue* peer_cm_queue; //created by the peer
 
 
-	//rdpResourceControl* resourceControl;
-	rdp_peer_type peer_type;
-	rdp_peer_connection_state connection_state;
-	rdp_peer_video_state video_state[MAX_HEAD];
+		//rdpResourceControl* resourceControl;
+		rdp_peer_type peer_type;
+		rdp_peer_connection_state connection_state;
+		rdp_peer_video_state video_state[MAX_HEAD];
 
-	//pthread_t thread_id;
-	UINT32 ack_frame_id;
-	BOOL activated;
-	BOOL local;
-	freerdpSecondaryPeer *secondary_peer;	// list of secondary peers
-	BOOL client_ready;
-	int client_ready_count;
-	BOOL resolution_change_active;
-	//BOOL is_controlling_peer; //the lad responsible for keyboard and mouse control, a transitory honour that passes from peer to peer
+		//pthread_t thread_id;
+		UINT32 ack_frame_id;
+		BOOL activated;
+		BOOL local;
+		freerdpSecondaryPeer *secondary_peer;	// list of secondary peers
+		BOOL client_ready;
+		int client_ready_count;
+		BOOL resolution_change_active;
+		//BOOL is_controlling_peer; //the lad responsible for keyboard and mouse control, a transitory honour that passes from peer to peer
 
-	char connection_hostname[255];
-	char connection_username[255];
-	CONNECTION_MODE connection_mode;
-	COMPRESSION_MODE compression_mode;
-	UINT32 connection_start_time;
-	UINT32 connection_end_time;
-	UINT32 connection_duration;
-	UINT32 connection_id;
-	UINT32 video_master_cid;
-	UINT32 audio_master_cid;
-	UINT32 video_slave_cid;
-	UINT32 audio_slave_cid;
-	unsigned int video_sequence_number;
-	unsigned int audio_sequence_number;
-	int video_channel;
-	int audio_channel;
-	BOOL terminating;
-	BOOL is_active[MAX_HEAD];
-	UINT8 domain_key[6];
-	UINT32 last_rtt;
-	UINT32 last_mss;
-	UINT32 decoder_width[MAX_HEAD];
-	UINT32 decoder_height[MAX_HEAD];
-	UINT32 decoder_refresh[MAX_HEAD];
-};
+		char connection_hostname[255];
+		char connection_username[255];
+		CONNECTION_MODE connection_mode;
+		COMPRESSION_MODE compression_mode;
+		UINT32 connection_start_time;
+		UINT32 connection_end_time;
+		UINT32 connection_duration;
+		UINT32 connection_id;
+		UINT32 video_master_cid;
+		UINT32 audio_master_cid;
+		UINT32 video_slave_cid;
+		UINT32 audio_slave_cid;
+		unsigned int video_sequence_number;
+		unsigned int audio_sequence_number;
+		int video_channel;
+		int audio_channel;
+		BOOL terminating;
+		BOOL is_active[MAX_HEAD];
+		UINT8 domain_key[6];
+		UINT32 last_rtt;
+		UINT32 last_mss;
+		UINT32 decoder_width[MAX_HEAD];
+		UINT32 decoder_height[MAX_HEAD];
+		UINT32 decoder_refresh[MAX_HEAD];
+	};
 
 // Black Box (end)
 
@@ -305,6 +331,17 @@ struct blackbox_peer_context {
 
 	FREERDP_API BOOL freerdp_peer_set_local_and_hostname(freerdp_peer* client,
 	                                                     const struct sockaddr_storage* peer_addr);
+
+
+// Black Box (begin)
+
+	FREERDP_API void freerdp_peer_signal_multicast_info(freerdp_peer* client,
+														UINT32 connection_type,
+														const char* multicast_ip,
+														const int multicast_port);
+
+// Black Box (end)
+
 
 #ifdef __cplusplus
 }
