@@ -1,8 +1,3 @@
-/*
- * John O'Sullivan
- * Copyright: Cloudium Systems 2014
- */
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -27,28 +22,37 @@
 #include <poll.h>
 #include <math.h>
 #include <freerdp/hardware_manager.h>
+#include <freerdp/core_event.h>
+#include "event_processor.h"
+
+static UINT8 saved_led_status = -1;
 
 hwManagerContext*  hw_manager_new()
 {
-	hwManagerContext * 	context = xnew(hwManagerContext,__func__);
-// 	context->capture_context = capture_layer_context_new();
-// 	context->configured_compression = UNKNOWN_COMPRESSION;
-// 	uint32_t previous_time = sh_log_get_mstime();
+	hwManagerContext* context = xnew(hwManagerContext, __func__);
+	context->capture_context = capture_layer_context_new();
+	context->configured_compression = UNKNOWN_COMPRESSION;
+	uint32_t previous_time = sh_log_get_mstime();
 
-// 	context->ingress_resolution[FIRST_HEAD] = (videoHead_t){0};
-// 	context->ingress_resolution[SECOND_HEAD] = (videoHead_t){0};
-// 	context->optimised_egress_res[FIRST_HEAD] = (videoHead_t){0};
-// 	context->optimised_egress_res[SECOND_HEAD] = (videoHead_t){0};
-// 	context->lossless_egress_res = (videoHead_t){0};
+	context->ingress_resolution[FIRST_HEAD] = (videoHead_t){0};
+	context->ingress_resolution[SECOND_HEAD] = (videoHead_t){0};
+	context->optimised_egress_res[FIRST_HEAD] = (videoHead_t){0};
+	context->optimised_egress_res[SECOND_HEAD] = (videoHead_t){0};
+	context->lossless_egress_res = (videoHead_t){0};
 
-// 	context->optimised_path_scaled = false;
+	context->optimised_path_scaled = false;
 
-// 	context->num_quants = 3;
+	context->num_quants = 3;
 
-// 	context->fpga_reset_complete = false;
-// 	context->quants = (uint32*) xmalloc(context->num_quants * 10 * sizeof(uint32),__func__); //enough space for 3 sets of 10
-// 	context->krdm_fd = -1;
-// 	context->keys_held = 0;
+	context->fpga_reset_complete = false;
+	context->quants = (UINT32 *) xmalloc(context->num_quants * 10 * sizeof(UINT32), __func__); //enough space for 3 sets of 10
+	if (!context->quants) {
+		corrib_syslog(LOG_ERR, "%s(): ENOM %d\n", __func__, __LINE__);
+		return NULL;
+	}
+
+	context->krdm_fd = -1;
+	context->keys_held = 0;
 
 //     for(uint8_t loop = 0; loop < 2; loop++)
 //     {
@@ -85,59 +89,62 @@ hwManagerContext*  hw_manager_new()
 
 // 	context->UsbaudioStatistics.moving_average_audio = 0;
 
-//     if(hid_interface_init_hid_devices(context) == false)
-//     	corrib_syslog(LOG_ERR,"%s: Failed to initialise HID interfaces\n",__func__); //FIXME, removing this may cause issues
+    // if(hid_interface_init_hid_devices(context) == false)
+    // 	corrib_syslog(LOG_ERR,"%s: Failed to initialise HID interfaces\n",__func__); //FIXME, removing this may cause issues
 
 //     if(virtual_interface_init_devices(&context->virtual_interface) == false)
 //     	corrib_syslog(LOG_ERR,"%s: Failed to initialise Virtual interfaces\n",__func__);
 
-//     context->signal_new_connection = true;
-//     context->suspend_video_h1 = true; //initially we suspend video until a connection has reached a point where negotiation is complete
-//     context->suspend_video_h2 = true;
-//     context->suspend_audio = true;
-//     context->outputReportAvailable = false;
-//     context->ab_x = 0;
-//     context->ab_y = 0;
-//     context->receiver_head_count = 1;
-//     context->enable_hm_heartbeats = false;
-//     context->enable_hid_tracing = false;
-// #ifdef MEMORY_ALLOCATION_MONITOR
-//     context->hm_ep_queue = eq_queue_new(__func__);
-// #else
-//     context->hm_ep_queue = eq_queue_new();
-// #endif
-//     eq_set_name(context->hm_ep_queue,"hm_ep_queue");
-//     context->capture_rate = FPGA_FRAME_YUV_CAPTURE_RATE;
-//     context->UsbaudioStatistics.previous_time_audio = previous_time;
-//     context->analogaudioStatistics.previous_time_audio = previous_time;
-//     context->analogaudioStatistics.moving_average_audio = 0;
-//     context->usbStatistics.previous_time_usb = previous_time;
+    context->signal_new_connection = true;
+    context->suspend_video_h1 = true; //initially we suspend video until a connection has reached a point where negotiation is complete
+    context->suspend_video_h2 = true;
+    context->suspend_audio = true;
+    context->outputReportAvailable = false;
+    context->ab_x = 0;
+    context->ab_y = 0;
+    context->receiver_head_count = 1;
+    context->enable_hm_heartbeats = false;
+    context->enable_hid_tracing = false;
+#ifdef MEMORY_ALLOCATION_MONITOR
+    context->hm_ep_queue = eq_queue_new(__func__);
+#else
+    context->hm_ep_queue = eq_queue_new();
+#endif
+    eq_set_name(context->hm_ep_queue,"hm_ep_queue");
+    context->capture_rate = FPGA_FRAME_YUV_CAPTURE_RATE;
+    // context->UsbaudioStatistics.previous_time_audio = previous_time;
+    // context->analogaudioStatistics.previous_time_audio = previous_time;
+    // context->analogaudioStatistics.moving_average_audio = 0;
+    // context->usbStatistics.previous_time_usb = previous_time;
 
-//     context->dual_head_board = su_is_dual_head();
+    context->dual_head_board = su_is_dual_head();
 
     return context;
 }
 
 void hw_manager_free(hwManagerContext* context)
 {
+	if (!context)
+		return;
+
 // 	//free all dependent structures first
 // 	//close the krdm driver
-// 	if(context->krdm_fd)
-// 	{
-// 		close(context->krdm_fd);
-// 	}
+	if(context->krdm_fd)
+	{
+		close(context->krdm_fd);
+	}
 
-// 	//close hid interfaces
-// 	hid_interface_deinit(context);
+	//close hid interfaces
+	// hid_interface_deinit(context);
 // 	virtual_interface_deinit(&context->virtual_interface);
-// #ifdef MEMORY_ALLOCATION_MONITOR
-// 	eq_queue_free(context->hm_ep_queue,__func__);
-// #else
-// 	eq_queue_free(context->hm_ep_queue);
-// #endif
-// 	xfree(context->quants,__func__);
-// 	capture_layer_context_free(context->capture_context);
-// 	xfree(context,__func__);
+#ifdef MEMORY_ALLOCATION_MONITOR
+	eq_queue_free(context->hm_ep_queue, __func__);
+#else
+	eq_queue_free(context->hm_ep_queue);
+#endif
+	xfree(context->quants, __func__);
+	capture_layer_context_free(context->capture_context);
+	xfree(context, __func__);
 }
 
 void hw_manager_set_queues(hwManagerContext* context, eqEventQueue* hm_cm_queue, eqEventQueue* cm_hm_queue)
@@ -145,6 +152,347 @@ void hw_manager_set_queues(hwManagerContext* context, eqEventQueue* hm_cm_queue,
 	//create  event queue FIXME, who should create these, perhaps the owner CM
 	context->hm_cm_queue = hm_cm_queue;
 	context->cm_hm_queue = cm_hm_queue;
+}
+
+//Main Processing Loop and thread management
+//-------------------------------------------
+void hw_manager_get_timeout_interval(hwManagerContext * context, struct timeval* tv)
+{
+	if(context != NULL && tv != NULL)
+	{
+	    tv->tv_sec = HW_DEFAULT_INTERVAL_PERIOD;
+	    tv->tv_usec = 0;
+
+	}
+}
+
+/*
+ * This needs to be capable of dynamically adding fds from multiple sources, for example peers who will come and go
+ */
+BOOL hw_manager_get_fds(hwManagerContext  * hm_context, void** rfds, int* rcount)
+{
+	int index;
+	//struct pollfd ufds;
+	// virtualInterface* virtual_interface = &hm_context->virtual_interface;
+	//get the queue FD for the hardware manager as we must process his events
+	if(*rcount > MAX_FDS)
+	{
+		corrib_syslog(LOG_ERR,"hardware manager has exceeded maximum file descriptors (%d) in %s\n", MAX_FDS, __func__);
+		return false;
+	}
+
+	int fd_hm_cm = eq_get_queue_fd(hm_context->cm_hm_queue);
+	if (fd_hm_cm < 1)
+	{
+		corrib_syslog(LOG_ERR,"failed tohm_cm queue fd in %s\n",__func__);
+		return false;
+	}
+	else
+	{
+		rfds[*rcount] = (void*)(long)(fd_hm_cm);
+		(*rcount)++;
+	}
+
+	if ((hm_context->krdm_fd < 1) /*|| (hm_context->fpga_reset_complete == false)*/)
+	{
+		corrib_syslog(LOG_ERR,"failed to get krdm fd or fpga reset failed in %s\n",__func__);
+		return false;
+	}
+	else
+	{
+		rfds[*rcount] = (void*)(long)(hm_context->krdm_fd);
+		(*rcount)++;
+	}
+
+#if 0
+	if(hm_context->audio_fd >= 0)
+	{
+		if (hm_context->audio_fd && hm_context->suspend_audio == false)
+		{
+			rfds[*rcount] = (void*)(long)(hm_context->audio_fd);
+			(*rcount)++;
+		}
+	}
+
+	for(index = 0; index < virtual_interface->size; index++)
+	{
+		if(virtual_interface->devices[index].fd > 0)
+		{
+			//corrib_syslog(LOG_DEBUG,"hw_manager_get_fds adding fd %d\n", virtual_interface->devices[index].fd);
+			rfds[*rcount] = (void*)(long)(virtual_interface->devices[index].fd);
+			(*rcount)++;
+		}
+		else
+		{
+			corrib_syslog(LOG_ERR,"failed to get virtual devices fd in %s\n",__func__);
+			return false;
+	}
+	}
+#endif
+	// ARPM: It adds the kbd handler to the select function fd array
+	if ((hm_context->keyb_fd < 1))
+	{
+		corrib_syslog(LOG_ERR,"%s(): kbd fd is in error state\n", __func__);
+		return false;
+	}
+	else
+	{
+		rfds[*rcount] = (void*)(long)(hm_context->keyb_fd);
+		(*rcount)++;
+	}
+
+	return true;
+}
+
+void * hw_manager_main_loop(void * arg)
+{
+	hwManagerContext * 	context = (hwManagerContext *)arg;
+	epContext * ep_context = ep_new(context); //FIXME, move this as appropriate into hm_context
+	BOOL running = true;
+	int num_set;
+	int i;
+	int fds;
+	int max_fds;
+	int rcount;
+	int index;
+	void* rfds[MAX_FDS];
+	fd_set rfds_set;
+	memset(rfds, 0, sizeof(rfds));
+	//virtualDevice* virtual_device;
+
+	struct timeval tv = {.tv_sec = HW_DEFAULT_INTERVAL_PERIOD, .tv_usec = 0}; //
+	context->main_thread_state = RUNNING;
+	assert(context->cm_hm_queue);
+	long long int last_processed = getEpochTimeMilliseconds ();
+	long long int next_iteration = last_processed + HW_DEFAULT_INTERVAL_PERIOD*1000;
+	time_t current_time = time(NULL);
+	while(running)
+	{
+		rcount = 0;
+		//corrib_syslog(LOG_DEBUG,"1.0:Time check at %u\n",sh_log_get_mstime());
+		hw_manager_get_timeout_interval(context, &tv);
+		if (hw_manager_get_fds(context, rfds, &rcount) != true)
+		{
+			corrib_syslog(LOG_ERR,"Failed to get hardware manager file descriptors in %s\n",__func__);
+			running = false;
+			hw_manager_set_exit_state(context,ERROR,"Failed to get FDs\n");
+			context->main_thread_state = STOPPED;
+			break;
+		}
+
+		max_fds = 0;
+		FD_ZERO(&rfds_set);
+
+		for (i = 0; i < rcount; i++)
+		{
+			fds = (int)(long)(rfds[i]);
+
+			if (fds > max_fds)
+				max_fds = fds;
+
+			FD_SET(fds, &rfds_set);
+		}
+
+		if (max_fds == 0)
+		{
+			running = false;
+			context->main_thread_state = STOPPED;
+			corrib_syslog(LOG_ERR,"max fds are zero in %s\n",__func__);
+			hw_manager_set_exit_state(context,ERROR,"max_fds were 0\n");
+			break;
+		}
+		//corrib_syslog(LOG_DEBUG,"HM_BS\n");
+		//corrib_syslog(LOG_DEBUG,"A.B:Time check at %u\n",sh_log_get_mstime());
+		num_set = select(max_fds + 1, &rfds_set, NULL, NULL, &tv);
+		//corrib_syslog(LOG_DEBUG,"A.A:Time check at %u\n",sh_log_get_mstime());
+		BOOL known_event = false;
+		//corrib_syslog(LOG_DEBUG,"HM_AS\n");
+		current_time=time(NULL);
+		if(num_set == -1)
+		{
+			/* these are not really errors */
+			if (!((errno == EAGAIN) ||
+				(errno == EWOULDBLOCK) ||
+				(errno == EINPROGRESS) ||
+				(errno == EINTR))) /* signal occurred */
+			{
+				corrib_syslog(LOG_ERR,"%s: select failed on error: %s.\n",  __func__,strerror(errno));
+				running = false;
+				break;
+			}
+		} //everything is as we expected
+		else
+		{
+			int cm_hm_fd = eq_get_queue_fd(context->cm_hm_queue);
+
+			if (FD_ISSET(cm_hm_fd, &rfds_set))
+			{
+				//corrib_syslog(LOG_DEBUG,"2.5:Time check at %u\n",sh_log_get_mstime());
+				//corrib_syslog(LOG_DEBUG,"Got an cm_hm_fd event\n");
+				known_event = true;
+				//read the queue
+				eqEvent* event = eq_pop(context->cm_hm_queue);
+				if(context->performance_analysis)
+				{
+					event->receive_time = sh_log_get_mstime();
+				}
+				if(event)
+				{
+					switch(event->type)
+					{
+					case EQ_EVENT_END:
+						corrib_syslog(LOG_NOTICE,"%s: got an end event, terminating.\n",  __func__);
+						running = false;
+						hw_manager_set_exit_state(context,NORMAL,"Normal exit, no errors\n");
+						context->main_thread_state = STOPPED;
+						break;
+					case EQ_EVENT_MOUSE:
+						if(context->debug_enabled)
+							corrib_syslog(LOG_DEBUG,"%s: got an EQ_EVENT_MOUSE\n",  __func__);
+						if(context->suspend_video_h1 == false)
+							hid_interface_process_mouse_event(context,event);
+						else
+							corrib_syslog(LOG_DEBUG,"%s: Filtering Mouse Events..\n",  __func__);
+						break;
+					case EQ_EVENT_KEYBOARD:
+						if(context->debug_enabled)
+							corrib_syslog(LOG_DEBUG,"%s: got an EQ_EVENT_KEYBOARD\n",  __func__);
+						if (context->enable_hid_tracing)
+							corrib_syslog(LOG_DEBUG, "%s(): Keyboard event received - code: %d flags: 0x%04x\n",
+									__func__,
+									((EventKeyboard *)event)->code,
+									((EventKeyboard *)event)->flags);
+						hid_interface_process_keyboard_event(context,event);
+						break;
+					case EQ_EVENT_NO_OP:
+						if(context->debug_enabled)
+							corrib_syslog(LOG_DEBUG,"%s: got an EQ_EVENT_NO_OP\n",  __func__);
+						break;
+					case EQ_EVENT_SURFACE_COMMAND_SENT:
+					{
+						break;
+					}
+
+					case EQ_EVENT_CLIENT_SIDE_READY: 
+					{
+						if(saved_led_status != -1)
+						{
+						    EventKeyboardOutputReport* event_keyboard_output_report = event_keyboard_output_report_new(saved_led_status);
+						    event_keyboard_output_report->send_time = sh_log_get_mstime();
+						    eq_push(context->hm_cm_queue, (eqEvent *)event_keyboard_output_report);
+						}
+						break;
+					}
+
+					default:
+						corrib_syslog(LOG_ERR,"%s: got an unknown event type:%d.\n",  __func__,event->type);
+						eq_show_event_type(event->type);
+					break;
+					}
+					eq_event_free(event); //free the event
+				}
+
+			}
+
+			if(context->krdm_fd >= 0)
+			{
+				if(FD_ISSET(context->krdm_fd, &rfds_set) && (context->main_thread_state == RUNNING)) //or if
+				{
+
+					known_event = true;
+					//corrib_syslog(LOG_DEBUG,"Got a krdm event\n");
+					if(context->signal_new_connection)
+					{
+						//rfx_reset_frame_index(ep_context->vp_context->rfx_context);
+						context->signal_new_connection = false;
+					}
+					ep_process_krdm_event(ep_context, context);
+
+				}
+			}
+			if(FD_ISSET(context->keyb_fd, &rfds_set) && (context->main_thread_state == RUNNING)) // ARPM: Ouput report has been received
+			{
+				UINT8 led_status = -1;
+				known_event = true;
+
+				if (read(context->keyb_fd, &led_status, 1) < 0) {
+					corrib_syslog(LOG_DEBUG,"%s(): kbd read error: %d\n", __func__, errno);
+				}
+				else {
+					saved_led_status = led_status;
+					EventKeyboardOutputReport* event_keyboard_output_report = event_keyboard_output_report_new(led_status);
+					if (event_keyboard_output_report) {
+						event_keyboard_output_report->send_time = sh_log_get_mstime();
+						eq_push(context->hm_cm_queue, (eqEvent *)event_keyboard_output_report);
+					}
+				}
+			}
+
+			if(((tv.tv_sec == 0) && (tv.tv_usec == 0)) || (next_iteration < getEpochTimeMilliseconds()) )
+			{
+				known_event = true;
+				last_processed = getEpochTimeMilliseconds();
+				hw_manager_process_interval_tasks(context);
+				next_iteration = last_processed + HW_DEFAULT_INTERVAL_PERIOD * 1000;
+			}
+			if(known_event == false)
+				corrib_syslog(LOG_ERR,"%s: got an unknown event from select.\n",  __func__);
+
+		}
+
+		//corrib_syslog(LOG_DEBUG,"4.0:Time check at %u\n",sh_log_get_mstime());
+	} //end of while loop
+	//ep_free(ep_context, context); //FIXME, causes double free
+	pthread_exit(NULL);
+
+	return NULL;
+}
+
+static pthread_t hw_manager_create_thread( void* func, void* arg)
+{
+	pthread_t thread;
+	if(pthread_create(&thread, 0, func, arg) != 0)
+		corrib_syslog(LOG_ERR, "%s: Failed to create thread for hw_manager\n",__func__);
+	else
+	{
+		return thread;
+	}
+	return 0;
+}
+
+void hw_manager_run(hwManagerContext * hm_context)
+{
+#ifdef CONNECTION_PROFILING
+	char command[255];
+    sprintf(command, "/opt/blackbox/time_check.sh shfreerdp hw_setup_start");
+    system(command);
+#endif
+
+	dal_get_videoquality(hm_context->quants);
+	capture_layer_initialise_yuv_block(hm_context->capture_context, hm_context->quants);
+
+	hw_manager_initialise_fpga(hm_context, FIRST_HEAD, PASS1);
+	if (hm_context->dual_head_board) 
+	{
+		hw_manager_initialise_fpga(hm_context, SECOND_HEAD, PASS1);
+	}
+
+#ifdef CONNECTION_PROFILING
+    sprintf(command, "/opt/blackbox/time_check.sh shfreerdp hw_setup_ends");
+    system(command);
+#endif
+
+	hm_context->main_thread = hw_manager_create_thread(hw_manager_main_loop, hm_context);
+	hm_context->fpga_reset_complete = true;
+	sleep(1);
+	// Uncomment virtual_interface_reset_devices(&hm_context->virtual_interface);
+}
+
+void hw_manager_set_exit_state(hwManagerContext * context,exitState state,const char * message)
+{
+	context->hm_exit_state = state;
+	strncpy(context->exit_info,message,255);
+
 }
 
 #if 0

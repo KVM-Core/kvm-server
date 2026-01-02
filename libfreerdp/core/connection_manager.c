@@ -110,55 +110,6 @@ cmContext* connection_manager_new(void)
 	cm_context->performance_analysis = false;
 	hw_manager_set_queues(cm_context->hm_context, cm_context->hm_cm_queue, cm_context->cm_hm_queue); //set the hw manager's queues
 	connection_manager_init_slave_cid_pool(cm_context);
-#if 0
-	su_get_tx_mouse_keyboard_timeout(&(cm_context->mouse_keyboard_timeout));
-	cm_context->hm_context = hw_manager_new(); //we create the hardware manager and store a reference
-	cm_context->mouse_keyboard_available = true;
-	cm_context->controlling_peer_id = -1;
-	cm_context->cm_compression_mode = UNKNOWN_COMPRESSION;
-#if defined(_EMERALD4K)
-	cm_context->server_technology_type = EMERALD_4K_SERVER;
-#else
-	cm_context->server_technology_type = EMERALD_2K_SERVER;
-#endif
-	cm_context->preemption = false;
-	cm_context->client_id_counter = 1; //0 is reserved for unallocated
-	//create  event queues for the hardware manager
-#ifdef MEMORY_ALLOCATION_MONITOR
-	cm_context->hm_cm_queue = eq_queue_new(__func__);
-#else
-	cm_context->hm_cm_queue = eq_queue_new();
-#endif
-        eq_set_name(cm_context->hm_cm_queue,"hm_cm_queue");
-#ifdef MEMORY_ALLOCATION_MONITOR
-	cm_context->cm_hm_queue = eq_queue_new(__func__);
-#else
-	cm_context->cm_hm_queue = eq_queue_new();
-#endif
-        eq_set_name(cm_context->cm_hm_queue,"cm_hm_queue");
-#ifdef MEMORY_ALLOCATION_MONITOR
-	cm_context->peer_cm_queue = eq_queue_new(__func__);
-#else
-	cm_context->peer_cm_queue = eq_queue_new();
-#endif
-        eq_set_name(cm_context->peer_cm_queue,"peer_cm_queue");
-	cm_context->cm_operating_mode = UNKNOWN_CONNECTION_MODE;
-	//cm_context->cm_operating_mode = PREEMPTIVE;
-	cm_context->multicast_peer_client = NULL;
-	memset(cm_context->audio_channels, CM_AV_CHANNEL_UNUSED, MAX_SHARED_CONNECTIONS);
-	memset(cm_context->video_channels, CM_AV_CHANNEL_UNUSED, MAX_SHARED_CONNECTIONS);
-	cm_context->resolution_change_needed[HEAD_1] = false;
-	cm_context->resolution_change_needed[HEAD_2] = false;
-	cm_context->statistics_counter = 60;
-
-	//corrib_syslog(LOG_DEBUG,"%s: cm_context->peer_cm_queue = %p\n",__func__,cm_context->peer_cm_queue);
-    LIST_INIT(&(cm_context->peer_list_head));                       /* Initialize the peer list. */
-    TAILQ_INIT(&(cm_context->peer_wait_queue_head));   //for peers waiting to join
-    pthread_mutex_init(&(cm_context->mutex), NULL);
-	cm_context->performance_analysis = false;
-	hw_manager_set_queues(cm_context->hm_context,cm_context->hm_cm_queue,cm_context->cm_hm_queue); //set the hw manager's queues
-	connection_manager_init_slave_cid_pool(cm_context);
-#endif
 	return cm_context;
 peer_cm_queue_no_mem:
 	eq_queue_free(cm_context->peer_cm_queue, __func__);
@@ -480,6 +431,7 @@ void connection_manager_run(cmContext * cm_context)
 		corrib_syslog(LOG_ERR,"CM: Failed to initialise TOE config, terminating\n");
 		exit(0);
 	}
+
 	if(su_avae_init())
 	{
 		corrib_syslog(LOG_ERR,"CM: Failed to initialise AVAE config, terminating\n");
@@ -505,8 +457,8 @@ void connection_manager_run(cmContext * cm_context)
 		corrib_syslog(LOG_DEBUG, "Entering FPGA reset test mode\n");
 		// hw_manager_test_fpga_reset(cm_context->hm_context);
 	}
-	// else
-		// hw_manager_run(cm_context->hm_context); //start the hardware manager
+	else
+		hw_manager_run(cm_context->hm_context); //start the hardware manager
 
 }
 

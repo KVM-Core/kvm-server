@@ -18,8 +18,6 @@
 #include <freerdp/utils/event_queue.h>
 #include <corrib_logger.h>
 #include <system_utils.h>
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,6 +31,8 @@
 #include <arpa/inet.h>
 #include <sys/ioctl.h>
 #include <net/ethernet.h>
+#include <textfields.h>
+
 #if 0
 static void * server_peer_monitor_loop(void * arg)
 {
@@ -826,7 +826,6 @@ static BOOL server_peer_signal_recovery_request(freerdp_peer* client, int head)
 
 BOOL server_peer_capabilities(freerdp_peer* client)
 {
-
 	return true;
 }
 
@@ -1591,8 +1590,13 @@ void server_peer_init(freerdp_peer* client, cmContext* cm_context)
 		corrib_syslog(LOG_ERR, "%s(): No settings at %d\n", __func__, __LINE__);
 		return;
 	}
-	else {
-		settings = client->context->settings; //bb_peer_context->settings;
+
+	settings = client->context->settings;
+
+	settings->head_detected = (UINT8 *)xmalloc(sizeof(UINT8)*2, __func__);
+	if (!settings->head_detected) {
+		corrib_syslog(LOG_ERR, "%s(): ENOM %d\n", __func__, __LINE__);
+		return;
 	}
 
 	corrib_syslog(LOG_DEBUG, "%s(): at %d\n", __func__, __LINE__);
@@ -1616,15 +1620,18 @@ void server_peer_init(freerdp_peer* client, cmContext* cm_context)
 	//TODO MD - We need to set these are we know what the client is
 	//settings->connection_resolution[FIRST_HEAD] = *cm_context->hm_context->connection_resolution[FIRST_HEAD];
 	//settings->connection_resolution[SECOND_HEAD] = *cm_context->hm_context->connection_resolution[SECOND_HEAD];
-	// settings->head_detected[FIRST_HEAD] = cm_context->hm_context->head_detected[FIRST_HEAD];
-	// settings->head_detected[SECOND_HEAD] = cm_context->hm_context->head_detected[SECOND_HEAD];
+
+	settings->head_detected[FIRST_HEAD] = cm_context->hm_context->head_detected[FIRST_HEAD];
+	settings->head_detected[SECOND_HEAD] = cm_context->hm_context->head_detected[SECOND_HEAD];
 
 	// settings->performance_analysis = cm_context->performance_analysis;
 	// settings->debug_enabled = cm_context->debug_enabled;
 	settings->cert_file = xstrdup("/opt/blackbox/shfreerdp/server.crt");
 	settings->privatekey_file = xstrdup("/opt/blackbox/shfreerdp/server.key");
 	settings->rdp_key_file = xstrdup("/opt/blackbox/shfreerdp/rdp.key");
+
 	corrib_syslog(LOG_DEBUG, "%s(): at %d\n", __func__, __LINE__);
+
 	client->PostConnect = server_peer_post_connect;
 	client->SignalClientReady = server_peer_signal_client_ready;
 	client->SignalMulticastInfo = server_peer_signal_multicast_info;

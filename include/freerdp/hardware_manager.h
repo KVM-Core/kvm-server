@@ -18,8 +18,8 @@
 #include <freerdp/utils/event_queue.h>
 // #include <freerdp/utils/event_sender.h>
 // #include <freerdp/virtual_interface.h>
-// #include <dal.h>
-// #include <capture_layer.h>
+#include <dal.h>
+#include <capture_layer.h>
 #include <freerdp/codec/rfx.h>
 
 
@@ -147,26 +147,26 @@ struct frame_record
 	UINT32 head;
 };
 
-// typedef struct
-// {
-// 	videoHead_t ingress_resolution;	  	  //This is actual input resolution from the source
-// 	videoHead_t optimised_egress_res;  	  //Connection resolution of Optimised Connections
-// 	videoHead_t lossless_egress_res;	  //Connection resolution of Lossless Connections
-// 	BOOL sync_loss;
-// } videoData_t;
+typedef struct
+{
+	videoHead_t ingress_resolution;	  	  //This is actual input resolution from the source
+	videoHead_t optimised_egress_res;  	  //Connection resolution of Optimised Connections
+	videoHead_t lossless_egress_res;	  //Connection resolution of Lossless Connections
+	BOOL sync_loss;
+} videoData_t;
 
 typedef struct hw_manager_context hwManagerContext;
 
 struct hw_manager_context
 {
 	// //------------------Memory Mapping -------------------------
-    // CAPTURE_LAYER_CONTEXT * capture_context;
-	// COMPRESSION_MODE configured_compression;
+    CAPTURE_LAYER_CONTEXT * capture_context;
+	COMPRESSION_MODE configured_compression;
 
-	// //------------ Resolution -----------------------------------
-	// videoHead_t ingress_resolution[2];	  	  //This is actual input resolution from the source
-	// videoHead_t optimised_egress_res[2];  	  //Connection resolution of Optimised Connections
-	// videoHead_t lossless_egress_res;	      //Connection resolution of Lossless Connections
+	//------------ Resolution -----------------------------------
+	videoHead_t ingress_resolution[2];	  	  //This is actual input resolution from the source
+	videoHead_t optimised_egress_res[2];  	  //Connection resolution of Optimised Connections
+	videoHead_t lossless_egress_res;	      //Connection resolution of Lossless Connections
 	BOOL optimised_path_scaled;				  //Set to true when Optimised path is scaled
 
 	//------------ Board Config ---------------------------
@@ -292,7 +292,7 @@ void hw_manager_free(hwManagerContext* context);
 // void hw_manager_signal_new_connection(hwManagerContext * context);
 // void hw_manager_detect_resolution(hwManagerContext * context, int head);
 void hw_manager_set_queues(hwManagerContext * context,eqEventQueue* hm_cm_queue,eqEventQueue* cm_hm_queue);
-// void hw_manager_run(hwManagerContext * context);
+void hw_manager_run(hwManagerContext * context);
 // void hw_manager_enable_performance_analysis(hwManagerContext * hm_context);
 // void hw_manager_enable_debug(hwManagerContext * hm_context);
 // void hw_manager_set_media_suspend_state(hwManagerContext * context,hwMediaState state,BOOL value);

@@ -881,7 +881,7 @@ struct rdp_settings
 	/*Cloudium */
 	SETTINGS_DEPRECATED(ALIGN64 videoHead_t* connection_resolution); /* 6005 */
 	SETTINGS_DEPRECATED(ALIGN64 videoHead_t* unscaled_input_resolution); /* 6006 */
-	SETTINGS_DEPRECATED(ALIGN64 UINT8 head_detected); /* 6007 */
+	SETTINGS_DEPRECATED(ALIGN64 UINT8* head_detected); /* 6007 */
 
 	//ALIGN64 BOOL capability_exchange_complete;
 	SETTINGS_DEPRECATED(ALIGN64 BOOL outputReportAvailable); /* 6008 */

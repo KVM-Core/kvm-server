@@ -91,6 +91,31 @@ extern "C"
 		UINT32 frequency;
 	} PLAY_SOUND_UPDATE;
 
+	// Black Box (begin)
+	struct _AUDIO_DATA_COMMAND
+	{
+		UINT32 cmdType;
+		UINT16 formatTag;
+		UINT16 channels;
+		UINT32 samplesPerSec;
+		UINT16 blockAlign;
+		UINT16 bitsPerSample;
+		UINT32 audioDataLength;
+		UINT8* audioData;
+	};
+
+	typedef struct _AUDIO_DATA_COMMAND AUDIO_DATA_COMMAND;
+
+	struct _USB_COMMAND
+	{
+		//UINT16 type;
+		UINT32 dataLength;
+		UINT8* data;
+	};
+
+	typedef struct _USB_COMMAND USB_COMMAND;
+	// Black Box (end)
+
 	/* Surface Command Updates */
 	typedef struct
 	{

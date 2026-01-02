@@ -276,7 +276,7 @@ struct event_decode_done
 	UINT32 previous_frame_receive_time;
 	int size;
 	int head_id;
-	// FRAME_TYPES frame_type;
+	FRAME_TYPES frame_type;
 	int frame_number;
 	int starting_tile;
 	int number_of_tiles;

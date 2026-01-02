@@ -155,6 +155,9 @@ set(${MODULE_PREFIX}_SRCS
     core_event.c
     connection_manager.c
     hardware_manager.c
+    event_processor.c
+    event_processor.h
+    event_processor_bundle.h
 )
 
 set(${MODULE_PREFIX}_SRCS ${${MODULE_PREFIX}_SRCS} ${${MODULE_PREFIX}_GATEWAY_SRCS})
@@ -177,6 +180,10 @@ freerdp_pc_add_requires_private("libssl")
   find_library(SYSTEM_LIBRARY systemutils HINTS ${SYSROOT_LOCATION}/usr/lib)
   freerdp_library_add(${SYSTEM_LIBRARY})
   freerdp_pc_add_requires_private("libsystemutils")
+
+  find_library(CAPTURE_LIBRARY capture_layer HINTS ${SYSROOT_LOCATION}/usr/lib)
+  freerdp_library_add(${CAPTURE_LIBRARY})
+  freerdp_pc_add_requires_private("libcapture_layer")
 # Black Box (end)
 
 if(BUILD_TESTING_INTERNAL OR BUILD_TESTING)

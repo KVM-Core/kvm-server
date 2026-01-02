@@ -40,6 +40,17 @@ extern "C"
 		RLGR3
 	} RLGR_MODE;
 
+	// Black Box (begin)
+	enum _FRAME_TYPES
+	{
+		FULL_FRAME,
+		PARTIAL_START,
+		PARTIAL,
+		PARTIAL_END
+	};
+	typedef enum _FRAME_TYPES FRAME_TYPES;
+	// Black Box (end)
+
 	typedef struct
 	{
 		UINT16 x;

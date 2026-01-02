@@ -42,6 +42,8 @@ set(${MODULE_PREFIX}_SRCS
     sh_logger.c
     memory.c
     file.c
+    list.c
+    mutex.c
 )
 
 find_library(LOGGING_LIBRARY logging REQUIRED)
