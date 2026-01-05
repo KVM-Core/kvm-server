@@ -17,7 +17,7 @@ struct audio_packetizer_context
 	UINT8 *audioData;
 };
 
-apContext*  audio_packetizer_new();
+apContext*  audio_packetizer_new(void);
 void audio_packetizer_free(apContext* ap_context);
 AUDIO_DATA_COMMAND* ap_create_audio_command(apContext* ap_context, hwManagerContext* hm_context);
 

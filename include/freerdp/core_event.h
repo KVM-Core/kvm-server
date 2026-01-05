@@ -9,6 +9,7 @@
 #include <freerdp/freerdp.h>
 #include <freerdp/utils/event_queue.h>
 // #include "mcs.h"
+#include <freerdp/hardware_manager.h>
 
 
 enum access_status {
@@ -161,11 +162,11 @@ struct event_resolution_change
 	UINT32 receive_time;
 	//------ all events must start with these members
 	int head_id; //where the event originated head wise
-	// videoData_t connectionResData;
+	videoData_t connectionResData;
     UINT32 connection_type;
 };
 
-// EventResolutionChange* event_resolution_change_new(int head_id, const videoData_t connectionResData);
+EventResolutionChange* event_resolution_change_new(int head_id, const videoData_t connectionResData);
 void event_resolution_change_free(EventResolutionChange* event_resolution_change);
 void event_resolution_change_show(EventResolutionChange* event_resolution_change);
 void event_resolution_change_json_serialise(EventResolutionChange* event_resolution_change, char * buffer,int  buffer_size);
@@ -282,7 +283,7 @@ struct event_decode_done
 	int number_of_tiles;
 
 };
-// EventEncodeDone* event_encode_done_new(int head_id,FRAME_TYPES frame_type,int frame_number,int starting_tile,int number_of_tiles);
+EventEncodeDone* event_encode_done_new(int head_id, FRAME_TYPES frame_type, int frame_number, int starting_tile, int number_of_tiles);
 void event_encode_done_free(EventEncodeDone* event_decode_done);
 void event_encode_done_show(EventEncodeDone* event_decode_done);
 void event_encode_done_json_serialise(EventEncodeDone* event_decode_done, char * buffer,int  buffer_size);

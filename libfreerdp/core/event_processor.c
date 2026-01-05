@@ -32,6 +32,7 @@
 #include <freerdp/utils/file.h>
 #include <freerdp/core_event.h>
 #include "video_packetizer.h"
+#include "audio_packetizer.h"
 #include "event_processor.h"
 #include <corrib_logger.h>
 
@@ -67,28 +68,53 @@ void ep_deinit_streams(epContext * ep_context, int head);
  */
 epContext * ep_new(hwManagerContext * hm_context)
 {
-	epContext * ep_context =  xnew(epContext,__func__);
+	epContext * ep_context;
+	epVideoThreadBundle * bundle_head1;
+	epVideoThreadBundle * bundle_head2;
+	epAudioThreadBundle * bundle_audio;
+	epVirtualThreadBundle ** bundles_virtual;
+
+	ep_context =  xnew(epContext, __func__);
+	if (!ep_context)
+	{
+		corrib_syslog(LOG_ERR, "%s(): ENOM %d\n", __func__, __LINE__);
+		return NULL;
+	}
+
 	ep_context->hm_context = hm_context;
-	ep_context->up_context = usb_packetizer_new();
+	// ARPM uncomment ep_context->up_context = usb_packetizer_new();
 	ep_context->ap_context = audio_packetizer_new();
-	epVideoThreadBundle * bundle_head1 = ep_video_thread_bundle_new(ep_context,hm_context);
-	epVideoThreadBundle * bundle_head2 = ep_video_thread_bundle_new(ep_context,hm_context);
-	epAudioThreadBundle * bundle_audio = ep_audio_thread_bundle_new(ep_context,hm_context);
-	epVirtualThreadBundle ** bundles_virtual = ep_virtual_thread_bundles_new(ep_context,hm_context);
+	bundle_head1 = ep_video_thread_bundle_new(ep_context,hm_context);
+	bundle_head2 = ep_video_thread_bundle_new(ep_context,hm_context);
+	bundle_audio = ep_audio_thread_bundle_new(ep_context,hm_context);
+	// ARPM uncomment bundles_virtual = ep_virtual_thread_bundles_new(ep_context,hm_context);
 	ep_context->thread_bundles = ep_thread_bundles_new(ep_context,bundle_head1,bundle_head2,bundle_audio,bundles_virtual);
-	ep_context->running=true;
-	if(ep_create_thread( ep_main_loop,ep_context) == -1)
-		{
-			corrib_syslog(LOG_DEBUG,"Failed to create event thread in %s, terminating\n",__func__);
-			exit(0);
-		}
+
+	if (!(	ep_context->ap_context && 
+			ep_context->thread_bundles &&
+			bundle_head1 &&
+			bundle_head2 &&
+			bundle_audio))
+	{
+		corrib_syslog(LOG_ERR, "%s(): ENOM %d\n", __func__, __LINE__);
+		// Release memory properly
+		return NULL;
+	}
+
+	ep_context->running = true;
+
+	if (ep_create_thread(ep_main_loop, ep_context) == -1)
+	{
+		corrib_syslog(LOG_ERR, "Failed to create event thread in %s, terminating\n",__func__);
+		exit(0);
+	}
 
 	return ep_context;
 }
 
 
-/* Destructor
- *
+/*
+ * Destructor
  */
 void ep_free(epContext * ep_context, hwManagerContext * hm_context)
 {
@@ -98,31 +124,32 @@ void ep_free(epContext * ep_context, hwManagerContext * hm_context)
 	ep_video_thread_bundle_free(ep_context->thread_bundles->head1);
 	ep_video_thread_bundle_free(ep_context->thread_bundles->head2);
 	ep_thread_bundles_free(ep_context->thread_bundles);
-	xfree(ep_context,__func__);
+	xfree(ep_context, __func__);
 }
 
 // -------------------------------------------------------------
 
-epVideoThreadBundle * ep_video_thread_bundle_new(epContext * ep_context,hwManagerContext * hm_context)
+epVideoThreadBundle * ep_video_thread_bundle_new(epContext * ep_context, hwManagerContext * hm_context)
 {
-	epVideoThreadBundle * bundle =  xnew(epVideoThreadBundle,__func__);
+	epVideoThreadBundle * bundle = xnew(epVideoThreadBundle,__func__);
 	bundle->hm_context = hm_context;
 	bundle->ep_context = ep_context;
 	bundle->data_available = false;
 	pthread_mutex_init(&(bundle->mutex), NULL);
 	return bundle;
 }
+
 void ep_video_thread_bundle_free(epVideoThreadBundle * bundle)
 {
 	pthread_mutex_destroy(&(bundle->mutex));
-	xfree(bundle,__func__);
+	xfree(bundle, __func__);
 }
 
 // -------------------------------------------------------------
 
-epAudioThreadBundle * ep_audio_thread_bundle_new(epContext * ep_context,hwManagerContext * hm_context)
+epAudioThreadBundle * ep_audio_thread_bundle_new(epContext * ep_context, hwManagerContext * hm_context)
 {
-	epAudioThreadBundle * bundle = xnew(epAudioThreadBundle,__func__);
+	epAudioThreadBundle * bundle = xnew(epAudioThreadBundle, __func__);
 	bundle->hm_context = hm_context;
 	bundle->ep_context = ep_context;
 	bundle->data_available = false;
@@ -133,7 +160,7 @@ epAudioThreadBundle * ep_audio_thread_bundle_new(epContext * ep_context,hwManage
 void ep_audio_thread_bundle_free(epAudioThreadBundle * bundle)
 {
 	pthread_mutex_destroy(&(bundle->mutex));
-	xfree(bundle,__func__);
+	xfree(bundle, __func__);
 }
 
 // -------------------------------------------------------------
@@ -152,22 +179,23 @@ void ep_audio_thread_bundle_free(epAudioThreadBundle * bundle)
 // 	return bundle;
 // }
 
-epVirtualThreadBundle ** ep_virtual_thread_bundles_new(epContext * ep_context,hwManagerContext * hm_context)
-{
-	epVirtualThreadBundle ** bundles = NULL; int index;
-	// virtualInterface * virtual_interface = &hm_context->virtual_interface;
+// epVirtualThreadBundle ** ep_virtual_thread_bundles_new(epContext * ep_context,hwManagerContext * hm_context)
+// {
+// 	epVirtualThreadBundle ** bundles = NULL;
+// 	int index;
+// 	// virtualInterface * virtual_interface = &hm_context->virtual_interface;
 
-	// if(virtual_interface->size)
-	// {
-	// 	bundles = (epVirtualThreadBundle**) xzalloc(sizeof(epVirtualThreadBundle*) * virtual_interface->size,__func__);
-	// 	for(index = 0; index < virtual_interface->size; index++)
-	// 	{
-	// 		bundles[index] = ep_virtual_thread_bundle_new(ep_context, hm_context, &virtual_interface->devices[index]);
-	// 	}
-	// }
+// 	// if(virtual_interface->size)
+// 	// {
+// 	// 	bundles = (epVirtualThreadBundle**) xzalloc(sizeof(epVirtualThreadBundle*) * virtual_interface->size,__func__);
+// 	// 	for(index = 0; index < virtual_interface->size; index++)
+// 	// 	{
+// 	// 		bundles[index] = ep_virtual_thread_bundle_new(ep_context, hm_context, &virtual_interface->devices[index]);
+// 	// 	}
+// 	// }
 
-	return bundles;
-}
+// 	return bundles;
+// }
 
 
 void ep_virtual_thread_bundle_free(epVirtualThreadBundle * bundle)
@@ -222,7 +250,7 @@ epThreadBundles * ep_thread_bundles_new(epContext * ep_context, epVideoThreadBun
 	bundles->head1 = head1;
 	bundles->head2 = head2;
 	bundles->audio = audio;
-	bundles->virtuals = virtuals;
+	// bundles->virtuals = virtuals;
 	return bundles;
 }
 
@@ -398,13 +426,15 @@ void * ep_main_loop(void * arg)
 					switch(event->type)
 					{
 					case EQ_EVENT_END:
-						corrib_syslog(LOG_NOTICE,"%s: got an end event, terminating.\n",  __func__);
+						if(context->debug_enabled) {
+							corrib_syslog(LOG_NOTICE,"%s: got an end event, terminating.\n",  __func__);
+						}
 						running = false;
 						ep_set_exit_state(context,NORMAL,"Normal exit, no errors\n");
 						context->main_thread_state = STOPPED; //FIXME, do we want to stop the main thread or this one
 						break;
 					case EQ_EVENT_VIRTUAL_DONE:
-
+					{
 						if(context->debug_enabled) {
 							corrib_syslog(LOG_DEBUG,"%s: got an EQ_EVENT_VIRTUAL_DONE\n",  __func__);
 						}
@@ -420,12 +450,15 @@ void * ep_main_loop(void * arg)
 						//     ep_process_virtual_command(virtual_bundle);
 						// }
 						break;
-
+					}
 					case EQ_EVENT_AUDIO_DONE:
                     {
 						EventAudioDone * event_audio_done = (EventAudioDone * )event;
+						if(context->debug_enabled) {
+							corrib_syslog(LOG_DEBUG,"%s: got an EQ_EVENT_AUDIO_DONE\n",  __func__);
+						}
 						ep_audio_thread_bundle_update(ep_context->thread_bundles->audio);
-						ep_process_audio_command(ep_context->thread_bundles->audio);
+						// UNcomment ARPM ep_process_audio_command(ep_context->thread_bundles->audio);
                         break;
                     }
 
@@ -550,7 +583,7 @@ void * ep_process_audio_command(void * arg)
 	//corrib_syslog(LOG_DEBUG,"************ HARDWARE AUDIO EVENT PROCESS%s\n",__func__);
 	if(ep_bundle->hm_context->suspend_audio == false) //FIXME, we need a way of suspending audio
 	{
-		cmd = ap_create_audio_command(ep_bundle->ep_context->ap_context,ep_bundle->hm_context);
+		//Uncomment ARPMcmd = ap_create_audio_command(ep_bundle->ep_context->ap_context,ep_bundle->hm_context);
 		if(cmd != NULL)
 		{
 			EventAudioCommandAvailable * audio_command_available_event = event_audio_command_available_new(cmd); //create an end event to stop the hardware manager
@@ -695,11 +728,14 @@ BOOL ep_process_krdm_event(epContext * ep_context, hwManagerContext * hm_context
 	UINT32 frame_number;
 	int n;
 	char result[MAX_VIDEO_EVENTS_TO_READ]; //need to size this appropriately
-	//corrib_syslog(LOG_DEBUG,"EP_BR\n");
+
+	corrib_syslog(LOG_DEBUG,"EP_BR\n");
 	int bytesRead = read(hm_context->krdm_fd, result, MAX_VIDEO_EVENTS_TO_READ);
-	//corrib_syslog(LOG_DEBUG,"EP_AR\n");
+	corrib_syslog(LOG_DEBUG,"EP_AR\n");
+
 	if(hm_context->debug_enabled)
 		corrib_syslog(LOG_INFO,"_________________%s: ep debug enabled_____________ \n", __func__);
+
 	if (bytesRead < 0) //invalid byte count
 	{
 		if(!((errno == EAGAIN) || (errno == EWOULDBLOCK) ||
@@ -709,7 +745,6 @@ BOOL ep_process_krdm_event(epContext * ep_context, hwManagerContext * hm_context
 			status = false;
 			return status;
 		}
-
 	}
 	else //valid byte count
 	{
@@ -719,7 +754,8 @@ BOOL ep_process_krdm_event(epContext * ep_context, hwManagerContext * hm_context
 			status = false;
 			return status;
 		}
-		for(n=0; n < bytesRead; n+=2) //we may have up to 6 events here so after a resolution change we want to break from this and clear the kernel pipe
+
+		for(n = 0; n < bytesRead; n += 2) //we may have up to 6 events here so after a resolution change we want to break from this and clear the kernel pipe
 		{
 			//MD - TODO Are we sure only ASCII can be returned here???
 			kernel_irq_type = result[n] - 0x30;
@@ -728,7 +764,7 @@ BOOL ep_process_krdm_event(epContext * ep_context, hwManagerContext * hm_context
 			//corrib_syslog(LOG_DEBUG,"EP_%d %d\n",kernel_irq_type,kernel_event_value);
 			if(kernel_irq_type == H1_IRQ_RESOLUTION_CHANGE)
 			{
-				corrib_syslog(LOG_NOTICE ,"H1_IRQ_RESOLUTION_CHANGE\n");
+				corrib_syslog(LOG_DEBUG ,"H1_IRQ_RESOLUTION_CHANGE\n");
 				event_encode_done_video_purge( hm_context->hm_cm_queue, 1);//remove any stale events associated with video
 				eq_purge(EQ_EVENT_MOUSE, hm_context->cm_hm_queue); //remove any stale events associated with the mouse
 
@@ -736,7 +772,7 @@ BOOL ep_process_krdm_event(epContext * ep_context, hwManagerContext * hm_context
 			}
 			else if(kernel_irq_type == H2_IRQ_RESOLUTION_CHANGE)
 			{
-				corrib_syslog(LOG_NOTICE ,"H2_IRQ_RESOLUTION_CHANGE\n");
+				corrib_syslog(LOG_DEBUG ,"H2_IRQ_RESOLUTION_CHANGE\n");
 				event_encode_done_video_purge( hm_context->hm_cm_queue, 2);//remove any stale events associated with video
 				eq_purge(EQ_EVENT_MOUSE, hm_context->cm_hm_queue); //remove any stale events associated with the mouse
 
@@ -744,20 +780,19 @@ BOOL ep_process_krdm_event(epContext * ep_context, hwManagerContext * hm_context
 			}
 			else if(kernel_irq_type == H1_IRQ_SYNC_DETECT_CHANGE)
 			{
-				corrib_syslog(LOG_NOTICE ,"H1_IRQ_SYNC_DETECT_CHANGE\n");
+				corrib_syslog(LOG_DEBUG ,"H1_IRQ_SYNC_DETECT_CHANGE\n");
 				event_encode_done_video_purge( hm_context->hm_cm_queue, 1);//remove any stale events associated with video
 				ep_handle_sync_loss(hm_context,1);
 			}
 			else if(kernel_irq_type == H2_IRQ_SYNC_DETECT_CHANGE)
 			{
-				corrib_syslog(LOG_NOTICE ,"H2_IRQ_SYNC_DETECT_CHANGE\n");
+				corrib_syslog(LOG_DEBUG ,"H2_IRQ_SYNC_DETECT_CHANGE\n");
 				event_encode_done_video_purge( hm_context->hm_cm_queue, 2);//remove any stale events associated with video
 				//eq_purge(EQ_EVENT_DECODE_DONE, hm_context->hm_cm_queue); //remove any stale events associated with video
 				ep_handle_sync_loss(hm_context,2); //FIXME, disabling for debug
 			}
 			else if(kernel_irq_type == H1_IRQ_NO_OP)
 			{
-
 				//we do nothing here we have purged the kernel pipe of video events
 				corrib_syslog(LOG_INFO,"Got NoOp event\n");
 			}

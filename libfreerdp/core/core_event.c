@@ -349,20 +349,20 @@ void event_cloudium_message_show(EventCloudiumMessage* event_cloudium_message)
 //resolution_change Event
 //----------------------------------------------------
 //Constructor
-// EventResolutionChange* event_resolution_change_new(int head_id, const videoData_t connectionResData)
-// {
-//     EventResolutionChange* event_resolution_change = xnew(EventResolutionChange,__func__);
+EventResolutionChange* event_resolution_change_new(int head_id, const videoData_t connectionResData)
+{
+    EventResolutionChange* event_resolution_change = xnew(EventResolutionChange,__func__);
 
-//     if (event_resolution_change != NULL)
-//     {
-//         event_resolution_change->type = EQ_EVENT_RESOLUTION_CHANGE;
-//         event_resolution_change->send_time = 0;
-//         event_resolution_change->receive_time = 0;
-//         event_resolution_change->head_id = head_id;
-// 		event_resolution_change->connectionResData = connectionResData;
-// 	}
-//     return event_resolution_change;
-// }
+    if (event_resolution_change != NULL)
+    {
+        event_resolution_change->type = EQ_EVENT_RESOLUTION_CHANGE;
+        event_resolution_change->send_time = 0;
+        event_resolution_change->receive_time = 0;
+        event_resolution_change->head_id = head_id;
+		event_resolution_change->connectionResData = connectionResData;
+	}
+    return event_resolution_change;
+}
 
 //Destructor
 void event_resolution_change_free(EventResolutionChange* event_resolution_change)
@@ -1889,26 +1889,26 @@ void event_surface_command_available_json_serialise(EventSurfaceCommandAvailable
 //Encode Done
 //----------------------------------------------------
 //Constructor
-// EventEncodeDone* event_encode_done_new(int head_id,FRAME_TYPES frame_type,int frame_number,int starting_tile,int number_of_tiles)
-// {
-// 	EventEncodeDone* event_encode_done = xnew(EventEncodeDone,__func__);
+EventEncodeDone* event_encode_done_new(int head_id, FRAME_TYPES frame_type, int frame_number, int starting_tile, int number_of_tiles)
+{
+	EventEncodeDone* event_encode_done = xnew(EventEncodeDone,__func__);
 
-// 	if (event_encode_done != NULL)
-// 	{
-// 		event_encode_done->type = EQ_EVENT_ENCODE_DONE;
-// 		event_encode_done->send_time = 0;
-// 		event_encode_done->receive_time = 0;
-// 		event_encode_done->starting_tile = starting_tile;
-// 		event_encode_done->head_id = head_id;
-// 		event_encode_done->frame_type = frame_type;
-// 		event_encode_done->frame_number = frame_number;
-// 		event_encode_done->number_of_tiles = number_of_tiles;
-// 		event_encode_done->previous_frame_receive_time = 0;
+	if (event_encode_done != NULL)
+	{
+		event_encode_done->type = EQ_EVENT_ENCODE_DONE;
+		event_encode_done->send_time = 0;
+		event_encode_done->receive_time = 0;
+		event_encode_done->starting_tile = starting_tile;
+		event_encode_done->head_id = head_id;
+		event_encode_done->frame_type = frame_type;
+		event_encode_done->frame_number = frame_number;
+		event_encode_done->number_of_tiles = number_of_tiles;
+		event_encode_done->previous_frame_receive_time = 0;
 
-// 	}
+	}
 
-// 	return event_encode_done;
-// }
+	return event_encode_done;
+}
 
 //Destructor
 void event_encode_done_free(EventEncodeDone* event_encode_done)

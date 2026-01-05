@@ -29,9 +29,24 @@ static UINT8 saved_led_status = -1;
 
 hwManagerContext*  hw_manager_new()
 {
-	hwManagerContext* context = xnew(hwManagerContext, __func__);
+	hwManagerContext *context;
+
+	context = (hwManagerContext *) xnew(hwManagerContext, __func__);
+	if (!context)
+	{
+		corrib_syslog(LOG_ERR, "%s(): ENOM %d\n", __func__, __LINE__);
+		return NULL;
+	}
+
 	context->capture_context = capture_layer_context_new();
+	if (!context->capture_context)
+	{
+		corrib_syslog(LOG_ERR, "%s(): ERROR %d\n", __func__, __LINE__);
+		return NULL;
+	}
+
 	context->configured_compression = UNKNOWN_COMPRESSION;
+
 	uint32_t previous_time = sh_log_get_mstime();
 
 	context->ingress_resolution[FIRST_HEAD] = (videoHead_t){0};
@@ -46,7 +61,8 @@ hwManagerContext*  hw_manager_new()
 
 	context->fpga_reset_complete = false;
 	context->quants = (UINT32 *) xmalloc(context->num_quants * 10 * sizeof(UINT32), __func__); //enough space for 3 sets of 10
-	if (!context->quants) {
+	if (!context->quants)
+	{
 		corrib_syslog(LOG_ERR, "%s(): ENOM %d\n", __func__, __LINE__);
 		return NULL;
 	}
@@ -105,19 +121,24 @@ hwManagerContext*  hw_manager_new()
     context->receiver_head_count = 1;
     context->enable_hm_heartbeats = false;
     context->enable_hid_tracing = false;
-#ifdef MEMORY_ALLOCATION_MONITOR
+
     context->hm_ep_queue = eq_queue_new(__func__);
-#else
-    context->hm_ep_queue = eq_queue_new();
-#endif
-    eq_set_name(context->hm_ep_queue,"hm_ep_queue");
+	if (!context->hm_ep_queue) {
+		corrib_syslog(LOG_ERR, "%s(): ENOM %d\n", __func__, __LINE__);
+		return NULL;
+	}
+
+    eq_set_name(context->hm_ep_queue, "hm_ep_queue");
+
     context->capture_rate = FPGA_FRAME_YUV_CAPTURE_RATE;
     // context->UsbaudioStatistics.previous_time_audio = previous_time;
     // context->analogaudioStatistics.previous_time_audio = previous_time;
     // context->analogaudioStatistics.moving_average_audio = 0;
     // context->usbStatistics.previous_time_usb = previous_time;
-
     context->dual_head_board = su_is_dual_head();
+
+	//ARPM: undo hardcoded init...
+	context->debug_enabled = true;
 
     return context;
 }
@@ -137,11 +158,8 @@ void hw_manager_free(hwManagerContext* context)
 	//close hid interfaces
 	// hid_interface_deinit(context);
 // 	virtual_interface_deinit(&context->virtual_interface);
-#ifdef MEMORY_ALLOCATION_MONITOR
+
 	eq_queue_free(context->hm_ep_queue, __func__);
-#else
-	eq_queue_free(context->hm_ep_queue);
-#endif
 	xfree(context->quants, __func__);
 	capture_layer_context_free(context->capture_context);
 	xfree(context, __func__);
@@ -154,6 +172,140 @@ void hw_manager_set_queues(hwManagerContext* context, eqEventQueue* hm_cm_queue,
 	context->cm_hm_queue = cm_hm_queue;
 }
 
+//Resolution Detection
+//---------------------------------------------------------
+void hw_manager_detect_resolution(hwManagerContext* context, int head)
+{
+    if(capture_layer_read_resolution(context->capture_context, &context->ingress_resolution[head], head, 1))
+	{
+	 	corrib_syslog(LOG_NOTICE, "Using a detected resolution of %d X %d %dHz on head %d\n",
+									context->ingress_resolution[head].width,
+        							context->ingress_resolution[head].height,
+									context->ingress_resolution[head].refresh,
+									head);
+
+#if defined(_EMERALD4K)	
+		if( FIRST_HEAD == head )
+		{
+			//No scaling on lossless currently
+			context->lossless_egress_res = context->ingress_resolution[head];
+			//Check if we have an option of scaling (First Head only)
+	 		capture_layer_read_scaled_resolution(context->capture_context, &context->optimised_egress_res[FIRST_HEAD], &context->optimised_path_scaled);
+			if(context->optimised_path_scaled)
+			{
+				corrib_syslog(LOG_DEBUG,"Using a scaled resolution of %d X %d %dHz on Optimised Path\n", context->optimised_egress_res[FIRST_HEAD].width,
+					context->optimised_egress_res[FIRST_HEAD].height, context->optimised_egress_res[FIRST_HEAD].refresh);
+			}
+			else
+			{
+				context->optimised_egress_res[head] = context->ingress_resolution[head];
+			}
+		}
+#else
+		context->optimised_egress_res[head] = context->ingress_resolution[head];
+#endif
+	}
+	else
+	{
+		hw_manager_clear_video_head_structs(context, head);
+        corrib_syslog(LOG_NOTICE,"No resolution found assuming detached video cable or no output from PC on HEAD %d.\n", head);
+	}
+}
+
+void hw_manager_reset_and_configure_fpga(hwManagerContext * context, int head)
+{
+	corrib_syslog(LOG_INFO, "Resetting FPGA Logic for Head %d..........", head);
+	capture_layer_yuv_reset_head(context->capture_context, head);
+	if (context->head_detected[head])
+	{
+		hw_manager_detect_resolution(context, head);
+		//Below function only configures the optimised FPGA block
+		capture_layer_fpga_configure(context->capture_context, context->optimised_egress_res[head], head);
+	}
+	else
+	{
+		corrib_syslog(LOG_INFO, "Not configuring capture and encode for Head %d because no sync was detected", head);
+	}
+}
+
+//TODO do we need this anymore
+static void hw_manager_fpga_signal_new_connection(hwManagerContext * 	context, int head)
+{
+#if !defined(_EMERALD4K)
+	if (context->krdm_fd)
+	{
+		if (FIRST_HEAD == head)
+		{
+			write(context->krdm_fd, "9", 1); //signals to the krdm driver that a new connection has been established, this will cause the driver to reset frames count indicator
+		}
+		else
+		{
+			write(context->krdm_fd, "8", 1); //signals to the krdm driver that a new connection has been established, this will cause the driver to reset frames count indicator
+		}
+	}
+	else
+	{
+		corrib_syslog(LOG_ERR , "Failed to signal start of new session to krdm driver,krdm is not open\n");
+	}
+#endif
+}
+
+BOOL hw_manager_open_krdm(hwManagerContext* context)
+{
+	BOOL status;
+	int flags;
+
+	status = true;
+
+	if (context->krdm_fd != -1) //if its already open just return
+	{
+		return status;
+	}
+
+	context->krdm_fd = open(VIDEO_ISR_FILE, O_RDWR ); //| O_NONBLOCK
+
+	if (context->krdm_fd < 0)
+	{
+		corrib_syslog(LOG_ERR,"Failed to open krdm driver at %s\n",VIDEO_ISR_FILE);
+		perror("KRDM:");
+		status = false;
+	}
+	else
+	{
+		flags = fcntl(context->krdm_fd, F_GETFL, 0);
+		fcntl(context->krdm_fd, F_SETFL, flags | O_NONBLOCK);
+	}
+    return status;
+
+}
+
+/*
+ * Can also be called from sync loss and res change handlers
+ */
+BOOL hw_manager_initialise_fpga(hwManagerContext * context, int head, int pass)
+{
+	//TODO replace this print with something more sensible
+	//corrib_syslog(LOG_INFO,"%s: This has resolution changes disabled and is only using super sync detect signal\n",__func__);
+
+	context->head_detected[head] = capture_layer_detect_sync(context->capture_context, head);
+	
+	if(context->head_detected[head])
+	{
+		hw_manager_reset_and_configure_fpga(context, head);
+		capture_layer_read_dropped_frames(context->capture_context, head, OPTIMISED);
+	}
+
+	if(hw_manager_open_krdm(context))
+	{
+		hw_manager_fpga_signal_new_connection(context, head);
+	}
+
+	capture_layer_set_yuv_interrupt_reg(context->capture_context, head);
+
+	return true;
+}
+
+
 //Main Processing Loop and thread management
 //-------------------------------------------
 void hw_manager_get_timeout_interval(hwManagerContext * context, struct timeval* tv)
@@ -164,6 +316,20 @@ void hw_manager_get_timeout_interval(hwManagerContext * context, struct timeval*
 	    tv->tv_usec = 0;
 
 	}
+}
+
+long long int getEpochTimeMilliseconds (void)
+{
+	struct timeval tvalEpochTimeUsec = {.tv_sec=0, .tv_usec=0};
+	long long int ret;
+	if ( gettimeofday(&tvalEpochTimeUsec, NULL) ) {
+		corrib_syslog(LOG_DEBUG, "%s().error\n", __func__);
+		ret = -1;
+	}
+	else {
+		ret = (((long long int) tvalEpochTimeUsec.tv_sec) * 1000000ll + (long long int) tvalEpochTimeUsec.tv_usec)/1000;
+	}
+	return ret;
 }
 
 /*
@@ -184,7 +350,7 @@ BOOL hw_manager_get_fds(hwManagerContext  * hm_context, void** rfds, int* rcount
 	int fd_hm_cm = eq_get_queue_fd(hm_context->cm_hm_queue);
 	if (fd_hm_cm < 1)
 	{
-		corrib_syslog(LOG_ERR,"failed tohm_cm queue fd in %s\n",__func__);
+		corrib_syslog(LOG_ERR,"failed to hm_cm queue fd in %s\n",__func__);
 		return false;
 	}
 	else
@@ -229,10 +395,11 @@ BOOL hw_manager_get_fds(hwManagerContext  * hm_context, void** rfds, int* rcount
 	}
 	}
 #endif
+
 	// ARPM: It adds the kbd handler to the select function fd array
 	if ((hm_context->keyb_fd < 1))
 	{
-		corrib_syslog(LOG_ERR,"%s(): kbd fd is in error state\n", __func__);
+		corrib_syslog(LOG_ERR, "%s(): kbd fd is in error state\n", __func__);
 		return false;
 	}
 	else
@@ -244,7 +411,44 @@ BOOL hw_manager_get_fds(hwManagerContext  * hm_context, void** rfds, int* rcount
 	return true;
 }
 
-void * hw_manager_main_loop(void * arg)
+void hw_manager_process_interval_tasks(hwManagerContext * context)
+{
+	context->current_interval_time = sh_log_get_mstime();
+
+	if(freerdp_check_file_exists_and_delete("/tmp/ENABLE_HM_HEARTBEATS"))
+	{
+	   context->enable_hm_heartbeats = true;
+       corrib_syslog(LOG_DEBUG,"HM:%s: Heartbeat enabled.\n",  __func__);
+	}
+
+	if(context->enable_hm_heartbeats)
+	{
+           //output any required audit information here
+           context->enable_hm_heartbeats = false;
+	}
+
+	if(freerdp_check_file_exists_and_delete("/tmp/ENABLE_HID_TRACING"))
+	{
+		context->enable_hid_tracing = true;
+		corrib_syslog(LOG_DEBUG,"HM:%s: HID tracing enabled.\n",  __func__);
+	}
+
+	if(freerdp_check_file_exists_and_delete("/tmp/DISABLE_HID_TRACING"))
+	{
+		context->enable_hid_tracing = false;
+		corrib_syslog(LOG_DEBUG,"HM:%s: HID tracing disabled.\n",  __func__);
+	}
+
+#ifdef FPGA_RESET_DEBUG
+	if(interval_count++ > 10000)
+	{
+		corrib_syslog(LOG_DEBUG,"Exiting trying to cause FPGA_RESET issue\n");
+		exit(0);
+	}
+#endif
+}
+
+void* hw_manager_main_loop(void * arg)
 {
 	hwManagerContext * 	context = (hwManagerContext *)arg;
 	epContext * ep_context = ep_new(context); //FIXME, move this as appropriate into hm_context
@@ -301,13 +505,15 @@ void * hw_manager_main_loop(void * arg)
 			hw_manager_set_exit_state(context,ERROR,"max_fds were 0\n");
 			break;
 		}
+
 		//corrib_syslog(LOG_DEBUG,"HM_BS\n");
 		//corrib_syslog(LOG_DEBUG,"A.B:Time check at %u\n",sh_log_get_mstime());
 		num_set = select(max_fds + 1, &rfds_set, NULL, NULL, &tv);
 		//corrib_syslog(LOG_DEBUG,"A.A:Time check at %u\n",sh_log_get_mstime());
+
 		BOOL known_event = false;
 		//corrib_syslog(LOG_DEBUG,"HM_AS\n");
-		current_time=time(NULL);
+		current_time = time(NULL);
 		if(num_set == -1)
 		{
 			/* these are not really errors */
@@ -324,11 +530,10 @@ void * hw_manager_main_loop(void * arg)
 		else
 		{
 			int cm_hm_fd = eq_get_queue_fd(context->cm_hm_queue);
-
 			if (FD_ISSET(cm_hm_fd, &rfds_set))
 			{
-				//corrib_syslog(LOG_DEBUG,"2.5:Time check at %u\n",sh_log_get_mstime());
-				//corrib_syslog(LOG_DEBUG,"Got an cm_hm_fd event\n");
+				// corrib_syslog(LOG_DEBUG,"2.5:Time check at %u\n",sh_log_get_mstime());
+				corrib_syslog(LOG_DEBUG,"Got an cm_hm_fd event\n");
 				known_event = true;
 				//read the queue
 				eqEvent* event = eq_pop(context->cm_hm_queue);
@@ -341,40 +546,45 @@ void * hw_manager_main_loop(void * arg)
 					switch(event->type)
 					{
 					case EQ_EVENT_END:
-						corrib_syslog(LOG_NOTICE,"%s: got an end event, terminating.\n",  __func__);
+						corrib_syslog(LOG_NOTICE, "%s: got an end event, terminating.\n",  __func__);
 						running = false;
-						hw_manager_set_exit_state(context,NORMAL,"Normal exit, no errors\n");
+						hw_manager_set_exit_state(context, NORMAL, "Normal exit, no errors\n");
 						context->main_thread_state = STOPPED;
 						break;
 					case EQ_EVENT_MOUSE:
 						if(context->debug_enabled)
-							corrib_syslog(LOG_DEBUG,"%s: got an EQ_EVENT_MOUSE\n",  __func__);
+							corrib_syslog(LOG_DEBUG, "%s: got an EQ_EVENT_MOUSE\n",  __func__);
 						if(context->suspend_video_h1 == false)
-							hid_interface_process_mouse_event(context,event);
+						{
+// Uncomment							hid_interface_process_mouse_event(context,event);
+						}
 						else
-							corrib_syslog(LOG_DEBUG,"%s: Filtering Mouse Events..\n",  __func__);
+							corrib_syslog(LOG_DEBUG, "%s: Filtering Mouse Events..\n",  __func__);
 						break;
 					case EQ_EVENT_KEYBOARD:
 						if(context->debug_enabled)
-							corrib_syslog(LOG_DEBUG,"%s: got an EQ_EVENT_KEYBOARD\n",  __func__);
+							corrib_syslog(LOG_DEBUG, "%s: got an EQ_EVENT_KEYBOARD\n",  __func__);
 						if (context->enable_hid_tracing)
 							corrib_syslog(LOG_DEBUG, "%s(): Keyboard event received - code: %d flags: 0x%04x\n",
 									__func__,
 									((EventKeyboard *)event)->code,
 									((EventKeyboard *)event)->flags);
-						hid_interface_process_keyboard_event(context,event);
+						// Uncomment ARPM hid_interface_process_keyboard_event(context,event);
 						break;
 					case EQ_EVENT_NO_OP:
 						if(context->debug_enabled)
-							corrib_syslog(LOG_DEBUG,"%s: got an EQ_EVENT_NO_OP\n",  __func__);
+							corrib_syslog(LOG_DEBUG, "%s: got an EQ_EVENT_NO_OP\n",  __func__);
 						break;
 					case EQ_EVENT_SURFACE_COMMAND_SENT:
 					{
+						corrib_syslog(LOG_DEBUG, "%s: got an EQ_EVENT_SURFACE_COMMAND_SENT\n",  __func__);
 						break;
 					}
-
 					case EQ_EVENT_CLIENT_SIDE_READY: 
 					{
+						if(context->debug_enabled)
+							corrib_syslog(LOG_DEBUG, "%s: got an EQ_EVENT_CLIENT_SIDE_READY\n",  __func__);
+
 						if(saved_led_status != -1)
 						{
 						    EventKeyboardOutputReport* event_keyboard_output_report = event_keyboard_output_report_new(saved_led_status);
@@ -385,9 +595,9 @@ void * hw_manager_main_loop(void * arg)
 					}
 
 					default:
-						corrib_syslog(LOG_ERR,"%s: got an unknown event type:%d.\n",  __func__,event->type);
+						corrib_syslog(LOG_ERR, "%s: got an unknown event type:%d.\n",  __func__, event->type);
 						eq_show_event_type(event->type);
-					break;
+						break;
 					}
 					eq_event_free(event); //free the event
 				}
@@ -407,9 +617,9 @@ void * hw_manager_main_loop(void * arg)
 						context->signal_new_connection = false;
 					}
 					ep_process_krdm_event(ep_context, context);
-
 				}
 			}
+
 			if(FD_ISSET(context->keyb_fd, &rfds_set) && (context->main_thread_state == RUNNING)) // ARPM: Ouput report has been received
 			{
 				UINT8 led_status = -1;
@@ -428,18 +638,18 @@ void * hw_manager_main_loop(void * arg)
 				}
 			}
 
-			if(((tv.tv_sec == 0) && (tv.tv_usec == 0)) || (next_iteration < getEpochTimeMilliseconds()) )
+			if(((tv.tv_sec == 0) && (tv.tv_usec == 0)) || (next_iteration < getEpochTimeMilliseconds()))
 			{
 				known_event = true;
 				last_processed = getEpochTimeMilliseconds();
 				hw_manager_process_interval_tasks(context);
 				next_iteration = last_processed + HW_DEFAULT_INTERVAL_PERIOD * 1000;
 			}
+
 			if(known_event == false)
 				corrib_syslog(LOG_ERR,"%s: got an unknown event from select.\n",  __func__);
 
 		}
-
 		//corrib_syslog(LOG_DEBUG,"4.0:Time check at %u\n",sh_log_get_mstime());
 	} //end of while loop
 	//ep_free(ep_context, context); //FIXME, causes double free
@@ -451,8 +661,9 @@ void * hw_manager_main_loop(void * arg)
 static pthread_t hw_manager_create_thread( void* func, void* arg)
 {
 	pthread_t thread;
+
 	if(pthread_create(&thread, 0, func, arg) != 0)
-		corrib_syslog(LOG_ERR, "%s: Failed to create thread for hw_manager\n",__func__);
+		corrib_syslog(LOG_ERR, "%s: Failed to create thread for hw_manager\n", __func__);
 	else
 	{
 		return thread;
@@ -491,8 +702,84 @@ void hw_manager_run(hwManagerContext * hm_context)
 void hw_manager_set_exit_state(hwManagerContext * context,exitState state,const char * message)
 {
 	context->hm_exit_state = state;
-	strncpy(context->exit_info,message,255);
+	strncpy(context->exit_info, message, 255);
+}
 
+/**
+ * @brief Sets the Data structures of the passed in head to default
+ * 
+ * @param context hw_manager context
+ * @param head Desired video head
+ */
+void hw_manager_clear_video_head_structs(hwManagerContext * context, int head)
+{
+	context->ingress_resolution[head] = (videoHead_t){0};
+	context->optimised_egress_res[head] = (videoHead_t){0};
+#if defined(_EMERALD4K)
+	if( FIRST_HEAD == head )
+	{
+		context->lossless_egress_res = (videoHead_t){0};
+	}
+	context->optimised_path_scaled = false;
+#endif
+	context->head_detected[head] = false;
+}
+
+static const char *compression_type_name[] = { COMPRESSION_ENUMS(AS_STR) };
+static const char *connection_type_name[] = { CONNECTION_MODE_ENUMS(AS_STR) };
+
+static void hw_manager_init_capture_subsystem_for_compression(hwManagerContext * hw_context, int head, COMPRESSION_MODE compression_mode)
+{
+	corrib_syslog(LOG_DEBUG, "%s: Init %s Capture on Head %d\n", __func__, compression_type_name[compression_mode], head);
+
+	/* Clear DF Reset bit */
+	capture_layer_data_engine_reset_head_disable(hw_context->capture_context, head, compression_mode);
+
+	/* Rate limit the capture to 0 */
+	capture_layer_rate_control_disable(hw_context->capture_context, head, compression_mode);
+
+	/* Start Capture */
+	capture_layer_start_capture(hw_context->capture_context, head, compression_mode);
+}
+
+void hardware_manager_init_capture_subsystem(hwManagerContext * hw_context, int head, COMPRESSION_MODE cm_compression_mode)
+{
+	if (MODE_CHECK(cm_compression_mode, LOSSLESS))
+	{
+		hw_manager_init_capture_subsystem_for_compression(hw_context, head, LOSSLESS);
+	}
+
+	if (MODE_CHECK(cm_compression_mode, OPTIMISED))
+	{
+		hw_manager_init_capture_subsystem_for_compression(hw_context, head, OPTIMISED);
+	}
+}
+
+static void hw_manager_stop_capture_subsystem_for_compression(hwManagerContext *hw_context, int head, COMPRESSION_MODE compression_mode)
+{
+	corrib_syslog(LOG_DEBUG, "%s: Stopping Capture on Head %d for a compression type of %s\n", __func__, head, compression_type_name[compression_mode]);
+
+	/* Stop capture */
+	capture_layer_stop_capture(hw_context->capture_context, head, compression_mode, true);
+
+	/* Reset Data Flow controller */
+	capture_layer_data_engine_reset_head_enable(hw_context->capture_context, head, compression_mode);
+
+	/* Wait for frames in flight and Reset */
+	su_avae_enc_video_egress_reset(head, compression_mode);
+}
+
+void hardware_manager_stop_capture_subsystem(hwManagerContext *hw_context, int head, COMPRESSION_MODE cm_compression_mode)
+{
+	if(MODE_CHECK(cm_compression_mode, LOSSLESS)) 
+	{
+		hw_manager_stop_capture_subsystem_for_compression(hw_context, head, LOSSLESS);
+	}
+
+	if(MODE_CHECK(cm_compression_mode, OPTIMISED))
+	{
+		hw_manager_stop_capture_subsystem_for_compression(hw_context, head, OPTIMISED);
+	}
 }
 
 #if 0

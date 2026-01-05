@@ -88,7 +88,7 @@ void ep_video_thread_bundle_free(epVideoThreadBundle * bundle);
 epAudioThreadBundle *  ep_audio_thread_bundle_new(epContext * ep_context,hwManagerContext * hm_context);
 void ep_audio_thread_bundle_free(epAudioThreadBundle * bundle);
 
-epVirtualThreadBundle ** ep_virtual_thread_bundles_new(epContext * ep_context,hwManagerContext * hm_context);
+// epVirtualThreadBundle ** ep_virtual_thread_bundles_new(epContext * ep_context,hwManagerContext * hm_context);
 void ep_virtual_thread_bundles_free(epVirtualThreadBundle ** bundles, hwManagerContext * hm_context);
 
 void ep_video_thread_bundle_update(epThreadBundles * bundles,EventEncodeDone * event_decode_done,BOOL state,unsigned int height, unsigned int width);

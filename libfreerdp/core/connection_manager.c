@@ -80,6 +80,9 @@ cmContext* connection_manager_new(void)
 		goto peer_cm_queue_no_mem;
 	eq_set_name(cm_context->peer_cm_queue, "peer_cm_queue");
 
+	//ARPM: undo hardcoded init...
+	cm_context->debug_enabled = true;
+
 	su_get_tx_mouse_keyboard_timeout(&cm_context->mouse_keyboard_timeout);
 
 	cm_context->mouse_keyboard_available = true;

@@ -158,6 +158,8 @@ set(${MODULE_PREFIX}_SRCS
     event_processor.c
     event_processor.h
     event_processor_bundle.h
+    audio_packetizer.c
+    audio_packetizer.h
 )
 
 set(${MODULE_PREFIX}_SRCS ${${MODULE_PREFIX}_SRCS} ${${MODULE_PREFIX}_GATEWAY_SRCS})

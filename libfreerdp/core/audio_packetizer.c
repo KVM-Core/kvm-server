@@ -4,7 +4,7 @@
  */
 
 #include "audio_packetizer.h"
-#include "packetizer_debug.h"
+// #include "packetizer_debug.h"
 #include <freerdp/hardware_manager.h>
 #include <corrib_logger.h>
 #include <freerdp/utils/memory.h>
@@ -22,10 +22,10 @@
 /*
  * Constructor
  */
-apContext*  audio_packetizer_new()
+apContext*  audio_packetizer_new(void)
 {
 	apContext * ap_context =  xnew(apContext,__func__);
-	//ap_context->data = (uint8*) xzalloc(10000,__func__);
+	//ap_context->data = (UINT8*) xzalloc(10000,__func__);
 	if (ap_context != NULL)
 	{
 		ap_context->formatTag = WAVE_FORMAT_PCM;
@@ -35,7 +35,7 @@ apContext*  audio_packetizer_new()
 		ap_context->bitsPerSample = 16;
 		ap_context->samplesLatency = 3840/2;//3840;
 
-		ap_context->audioData = (uint8*) xzalloc(ap_context->samplesLatency * (ap_context->bitsPerSample / 8),__func__);
+		ap_context->audioData = (UINT8*) xzalloc(ap_context->samplesLatency * (ap_context->bitsPerSample / 8),__func__);
 	}
 
 	return ap_context;
@@ -55,8 +55,8 @@ void audio_packetizer_free(apContext * ap_context)
 
 AUDIO_DATA_COMMAND* ap_create_audio_command(apContext* ap_context, hwManagerContext* hm_context)
 {
-	STREAM * s_main;
-	AUDIO_DATA_COMMAND * cmd = audio_data_command_new(ap_context->audioData);
+	// STREAM * s_main;
+	AUDIO_DATA_COMMAND * cmd = NULL; //Uncomment ARPMaudio_data_command_new(ap_context->audioData);
 	int readSize, maxTotalSize = ap_context->samplesLatency * (ap_context->bitsPerSample / 8);
 	int i,maxReadSize = (((ap_context->samplesPerSec / 1000) * ap_context->bitsPerSample) / 8) * ap_context->channels;
 
@@ -94,36 +94,36 @@ AUDIO_DATA_COMMAND* ap_create_audio_command(apContext* ap_context, hwManagerCont
 
 		if (cmd->audioDataLength)
 		{
-			uint32 current_time;
-			uint32 time_difference;
+			UINT32 current_time;
+			UINT32 time_difference;
 			current_time=sh_log_get_mstime();
-			hm_context->UsbaudioStatistics.total_audio_frames_count++;
-			hm_context->UsbaudioStatistics.total_audio_bytes_sent+=cmd->audioDataLength;
-			time_difference = current_time - hm_context->UsbaudioStatistics.previous_time_audio;
-			if(time_difference > 60000) // more than a minute has elapsed
-			{
-				hm_context->UsbaudioStatistics.audio_bytes_per_second = (float)((float)(hm_context->UsbaudioStatistics.total_audio_bytes_sent/60));
-				if(hm_context->UsbaudioStatistics.moving_average_audio == 0)
-				{
-					hm_context->UsbaudioStatistics.moving_average_audio = hm_context->UsbaudioStatistics.audio_bytes_per_second;
-					corrib_syslog(LOG_DEBUG,"resetting avg=%f   \t",hm_context->UsbaudioStatistics.moving_average_audio);
-				}
-				hm_context->UsbaudioStatistics.moving_average_audio = hw_manager_get_rolling_average(hm_context->UsbaudioStatistics.moving_average_audio,hm_context->UsbaudioStatistics.audio_bytes_per_second,1);
-				if(hm_context->UsbaudioStatistics.audio_bytes_per_second < hm_context->UsbaudioStatistics.min_audio_bytes_per_second )
-					hm_context->UsbaudioStatistics.min_audio_bytes_per_second = hm_context->UsbaudioStatistics.audio_bytes_per_second;
-				if(hm_context->UsbaudioStatistics.audio_bytes_per_second > hm_context->UsbaudioStatistics.max_audio_bytes_per_second )
-					hm_context->UsbaudioStatistics.max_audio_bytes_per_second = hm_context->UsbaudioStatistics.audio_bytes_per_second;
-#ifdef ENABLE_WEB_SERVICE_REPORTING
-				statistcs_send_json_usb_audio_fact_object(&(hm_context->UsbaudioStatistics));
-#endif
-				hm_context->UsbaudioStatistics.total_audio_bytes_sent = 0;
-				hm_context->UsbaudioStatistics.previous_time_audio = current_time;
-				//corrib_syslog(LOG_DEBUG,"updated ct=%u pt=%u\n",current_time,hm_context->UsbaudioStatistics.previous_time_audio);
-			}
-			else
-			{
-				//corrib_syslog(LOG_DEBUG,"skipped ct=%u pt=%u d=%u\n",current_time,hm_context->UsbaudioStatistics.previous_time_audio,time_difference);
-			}
+// ARPM Uncomment 			hm_context->UsbaudioStatistics.total_audio_frames_count++;
+// 			hm_context->UsbaudioStatistics.total_audio_bytes_sent+=cmd->audioDataLength;
+// 			time_difference = current_time - hm_context->UsbaudioStatistics.previous_time_audio;
+// 			if(time_difference > 60000) // more than a minute has elapsed
+// 			{
+// 				hm_context->UsbaudioStatistics.audio_bytes_per_second = (float)((float)(hm_context->UsbaudioStatistics.total_audio_bytes_sent/60));
+// 				if(hm_context->UsbaudioStatistics.moving_average_audio == 0)
+// 				{
+// 					hm_context->UsbaudioStatistics.moving_average_audio = hm_context->UsbaudioStatistics.audio_bytes_per_second;
+// 					corrib_syslog(LOG_DEBUG,"resetting avg=%f   \t",hm_context->UsbaudioStatistics.moving_average_audio);
+// 				}
+// 				hm_context->UsbaudioStatistics.moving_average_audio = hw_manager_get_rolling_average(hm_context->UsbaudioStatistics.moving_average_audio,hm_context->UsbaudioStatistics.audio_bytes_per_second,1);
+// 				if(hm_context->UsbaudioStatistics.audio_bytes_per_second < hm_context->UsbaudioStatistics.min_audio_bytes_per_second )
+// 					hm_context->UsbaudioStatistics.min_audio_bytes_per_second = hm_context->UsbaudioStatistics.audio_bytes_per_second;
+// 				if(hm_context->UsbaudioStatistics.audio_bytes_per_second > hm_context->UsbaudioStatistics.max_audio_bytes_per_second )
+// 					hm_context->UsbaudioStatistics.max_audio_bytes_per_second = hm_context->UsbaudioStatistics.audio_bytes_per_second;
+// #ifdef ENABLE_WEB_SERVICE_REPORTING
+// 				statistcs_send_json_usb_audio_fact_object(&(hm_context->UsbaudioStatistics));
+// #endif
+// 				hm_context->UsbaudioStatistics.total_audio_bytes_sent = 0;
+// 				hm_context->UsbaudioStatistics.previous_time_audio = current_time;
+// 				//corrib_syslog(LOG_DEBUG,"updated ct=%u pt=%u\n",current_time,hm_context->UsbaudioStatistics.previous_time_audio);
+// 			}
+// 			else
+// 			{
+// 				//corrib_syslog(LOG_DEBUG,"skipped ct=%u pt=%u d=%u\n",current_time,hm_context->UsbaudioStatistics.previous_time_audio,time_difference);
+// 			}
 
 			cmd->formatTag = ap_context->formatTag;
 			cmd->channels = ap_context->channels;
@@ -138,7 +138,7 @@ AUDIO_DATA_COMMAND* ap_create_audio_command(apContext* ap_context, hwManagerCont
 			//August 2016: In discussion with Brian, we do not believe this is an error,
 			//as per design we may end up reading all available audio on first trip to find no audio on subsequent trip.
 			//corrib_syslog(LOG_ERR,"%s: Got audio event but no audio data was available\n",__func__);
-			audio_data_command_free(cmd);
+			// ARPM uncomment audio_data_command_free(cmd);
 			cmd = NULL;
 		}
 

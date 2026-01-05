@@ -4,7 +4,6 @@
  */
 
 #include "video_packetizer.h"
-#include "packetizer_debug.h"
 #include <freerdp/hardware_manager.h>
 #include <freerdp/locale/keyboard.h>
 #include <freerdp/codec/color.h>
