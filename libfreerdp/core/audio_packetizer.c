@@ -4,7 +4,6 @@
  */
 
 #include "audio_packetizer.h"
-// #include "packetizer_debug.h"
 #include <freerdp/hardware_manager.h>
 #include <corrib_logger.h>
 #include <freerdp/utils/memory.h>
