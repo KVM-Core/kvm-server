@@ -577,6 +577,7 @@ freerdp_listener* freerdp_listener_new(void)
 	instance->listener_cm_queue = eq_queue_new(__func__);
 	if (!instance->listener_cm_queue)
 		goto queue_no_mem;
+	corrib_syslog(LOG_DEBUG, "%s(): at %d instance->listener_cm_queue = eq_queue_new: %p\n", __func__, __LINE__, instance->listener_cm_queue);
 	eq_set_name(instance->listener_cm_queue, "listener_cm_queue");
 
 	instance->connection_manager = connection_manager_new();

@@ -127,7 +127,7 @@ hwManagerContext*  hw_manager_new()
 		corrib_syslog(LOG_ERR, "%s(): ENOM %d\n", __func__, __LINE__);
 		return NULL;
 	}
-
+	corrib_syslog(LOG_DEBUG, "%s(): at %d hm_ep_queue = eq_queue_new: %p\n", __func__, __LINE__, context->hm_ep_queue);
     eq_set_name(context->hm_ep_queue, "hm_ep_queue");
 
     context->capture_rate = FPGA_FRAME_YUV_CAPTURE_RATE;

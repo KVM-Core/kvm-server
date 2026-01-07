@@ -1380,9 +1380,11 @@ static int usage(const char* app, const char* invalid)
 	return -1;
 }
 
-void peer_accepted_cm(cmContext * instance, freerdp_peer* client)
+void peer_accepted_cm(cmContext* cm_context, freerdp_peer* client)
 {
-	server_peer_accepted(instance, client);
+	corrib_syslog(LOG_DEBUG, "%s: begin\n",__func__);
+	server_peer_accepted(cm_context, client);
+	corrib_syslog(LOG_DEBUG, "%s: end\n",__func__);
 }
 
 int main(int argc, char* argv[])
@@ -1451,25 +1453,27 @@ printf("%s(): %d\n", __func__, __LINE__);
 		return -1;
 printf("%s(): %d\n", __func__, __LINE__);
 	if (!info.cert)
-		info.cert = "server.crt";
+		info.cert = "/opt/blackbox/shfreerdp/server.crt"; //"server.crt";
 	if (!info.key)
-		info.key = "server.key";
+		info.key = "/opt/blackbox/shfreerdp/server.key"; //"server.key";
 printf("%s(): %d\n", __func__, __LINE__);
 	instance->info = (void*)&info;
 	// instance->PeerAccepted = bb_peer_accepted;
+	corrib_syslog(LOG_DEBUG, "%s(): line %d cm context: %p cb: %p\n", __func__, __LINE__, instance->connection_manager, peer_accepted_cm);
 	instance->connection_manager->PeerAccepted = peer_accepted_cm;
+	corrib_syslog(LOG_DEBUG, "%s(): line %d cb: %p\n", __func__, __LINE__, instance->connection_manager->PeerAccepted);
 
-printf("%s(): %d\n", __func__, __LINE__);
+	corrib_syslog(LOG_DEBUG, "%s(): %d\n", __func__, __LINE__);
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
 		goto fail;
-printf("%s(): %d\n", __func__, __LINE__);
+	corrib_syslog(LOG_DEBUG, "%s(): %d\n", __func__, __LINE__);
 	/* Open the server socket and start listening. */
 	(void)sprintf_s(name, sizeof(name), "tfreerdp-server.%ld", port);
 	file = GetKnownSubPath(KNOWN_PATH_TEMP, name);
-printf("%s(): %d\n", __func__, __LINE__);
+	corrib_syslog(LOG_DEBUG, "%s(): %d\n", __func__, __LINE__);
 	if (!file)
 		goto fail;
-printf("%s(): %d\n", __func__, __LINE__);
+	corrib_syslog(LOG_DEBUG, "%s(): %d\n", __func__, __LINE__);
 	if (localOnly)
 	{
 		WINPR_ASSERT(instance->OpenLocal);
@@ -1480,14 +1484,14 @@ printf("%s(): %d\n", __func__, __LINE__);
 		WINPR_ASSERT(instance->Open);
 		started = instance->Open(instance, NULL, (UINT16)port);
 	}
-printf("%s(): %d\n", __func__, __LINE__);
+	corrib_syslog(LOG_DEBUG, "%s(): %d\n", __func__, __LINE__);
 	if (started)
 	{
 		/* Entering the server main loop. In a real server the listener can be run in its own
 		 * thread. */
-printf("%s(): %d\n", __func__, __LINE__);
+	corrib_syslog(LOG_DEBUG, "%s(): %d\n", __func__, __LINE__);
 		bb_server_mainloop(instance);
-printf("%s(): %d\n", __func__, __LINE__);
+	corrib_syslog(LOG_DEBUG, "%s(): %d\n", __func__, __LINE__);
 	}
 printf("%s(): %d\n", __func__, __LINE__);
 	rc = 0;

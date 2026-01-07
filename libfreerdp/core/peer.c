@@ -41,6 +41,8 @@
 #include "peer.h"
 #include "multitransport.h"
 
+#include <corrib_logger.h>
+
 #define TAG FREERDP_TAG("core.peer")
 
 static state_run_t peer_recv_pdu(freerdp_peer* client, wStream* s);
@@ -1524,38 +1526,39 @@ BOOL freerdp_peer_context_new_ex(freerdp_peer* client, const rdpSettings* settin
 	rdpContext* context = NULL;
 	BOOL ret = TRUE;
 
+	corrib_syslog(LOG_DEBUG, "%s(): begin\n", __func__, __LINE__);
 	if (!client)
 		return FALSE;
 
 	WINPR_ASSERT(client->ContextSize >= sizeof(rdpContext));
 	if (!(context = (rdpContext*)calloc(1, client->ContextSize)))
 		goto fail;
-printf("OK at %d\n", __LINE__);
+	corrib_syslog(LOG_DEBUG, "%s(): OK at %d context: %p\n", __func__, __LINE__, context);
 	client->context = context;
 	context->peer = client;
 	context->ServerMode = TRUE;
 	context->log = WLog_Get(TAG);
 	if (!context->log)
 		goto fail;
-printf("OK at %d\n", __LINE__);
+	corrib_syslog(LOG_DEBUG, "%s(): OK at %d\n", __func__, __LINE__);
 	if (settings)
 	{
 		context->settings = freerdp_settings_clone(settings);
 		if (!context->settings)
 			goto fail;
 	}
-printf("OK at %d\n", __LINE__);
+	corrib_syslog(LOG_DEBUG, "%s(): OK at %d\n", __func__, __LINE__);
 	context->dump = stream_dump_new();
 	if (!context->dump)
 		goto fail;
 	if (!(context->metrics = metrics_new(context)))
 		goto fail;
-printf("OK at %d\n", __LINE__);
+	corrib_syslog(LOG_DEBUG, "%s(): OK at %d\n", __func__, __LINE__);
 	if (!(rdp = rdp_new(context)))
 		goto fail;
-printf("OK at %d\n", __LINE__);
+	corrib_syslog(LOG_DEBUG, "%s(): OK at %d\n", __func__, __LINE__);
 	rdp_log_build_warnings(rdp);
-printf("OK at %d\n", __LINE__);
+	corrib_syslog(LOG_DEBUG, "%s(): OK at %d\n", __func__, __LINE__);
 #if defined(WITH_FREERDP_DEPRECATED)
 	client->update = rdp->update;
 	client->settings = rdp->settings;
@@ -1568,30 +1571,32 @@ printf("OK at %d\n", __LINE__);
 	context->autodetect = rdp->autodetect;
 	update_register_server_callbacks(rdp->update);
 	autodetect_register_server_callbacks(rdp->autodetect);
-printf("OK at %d\n", __LINE__);
+	corrib_syslog(LOG_DEBUG, "%s(): OK at %d\n", __func__, __LINE__);
 	if (!(context->channelErrorEvent = CreateEvent(NULL, TRUE, FALSE, NULL)))
 	{
 		WLog_ERR(TAG, "CreateEvent failed!");
 		goto fail;
 	}
-printf("OK at %d\n", __LINE__);
+	corrib_syslog(LOG_DEBUG, "%s(): OK at %d\n", __func__, __LINE__);
 	if (!(context->errorDescription = calloc(1, 500)))
 	{
 		WLog_ERR(TAG, "calloc failed!");
 		goto fail;
 	}
-printf("OK at %d\n", __LINE__);
+	corrib_syslog(LOG_DEBUG, "%s(): OK at %d\n", __func__, __LINE__);
 	if (!freerdp_peer_transport_setup(client))
 		goto fail;
-printf("OK at %d\n", __LINE__);
+	corrib_syslog(LOG_DEBUG, "%s(): OK at %d\n", __func__, __LINE__);
 	client->IsWriteBlocked = freerdp_peer_is_write_blocked;
 	client->DrainOutputBuffer = freerdp_peer_drain_output_buffer;
 	client->HasMoreToRead = freerdp_peer_has_more_to_read;
 	client->LicenseCallback = freerdp_peer_nolicense;
+	corrib_syslog(LOG_DEBUG, "%s(): before ContextNew callback\n", __func__);
 	IFCALLRET(client->ContextNew, ret, client, client->context);
-
+	corrib_syslog(LOG_DEBUG, "%s(): after ContextNew callback ret: %d\n", __func__, ret);
 	if (!ret)
 		goto fail;
+	corrib_syslog(LOG_DEBUG, "%s(): end\n", __func__, __LINE__);
 	return TRUE;
 
 fail:

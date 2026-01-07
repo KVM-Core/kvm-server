@@ -57,6 +57,7 @@ static void connection_manager_init_slave_cid_pool(cmContext * cm_context);
 
 cmContext* connection_manager_new(void)
 {
+	corrib_syslog(LOG_DEBUG,"%s: begin\n",__func__);
 	cmContext* cm_context = xnew(cmContext, __func__);
 	if (!cm_context)
 		goto context_alloc_no_mem;
@@ -65,19 +66,23 @@ cmContext* connection_manager_new(void)
 	if (!cm_context->hm_context)
 		goto hm_alloc_no_mem;
 
+
 	cm_context->hm_cm_queue = eq_queue_new(__func__);
 	if (!cm_context->hm_cm_queue)
 		goto hm_cm_queue_no_mem;
+	corrib_syslog(LOG_DEBUG, "%s(): at %d hm_cm_queue = eq_queue_new: %p\n", __func__, __LINE__, cm_context->hm_cm_queue);
     eq_set_name(cm_context->hm_cm_queue, "hm_cm_queue");
 
 	cm_context->cm_hm_queue = eq_queue_new(__func__);
 	if (!cm_context->cm_hm_queue)
 		goto cm_hm_queue_no_mem;
+	corrib_syslog(LOG_DEBUG, "%s(): at %d cm_hm_queue = eq_queue_new: %p\n", __func__, __LINE__, cm_context->cm_hm_queue);
     eq_set_name(cm_context->cm_hm_queue, "cm_hm_queue");
 
 	cm_context->peer_cm_queue = eq_queue_new(__func__);
 	if (!cm_context->peer_cm_queue)
 		goto peer_cm_queue_no_mem;
+	corrib_syslog(LOG_DEBUG, "%s(): at %d peer_cm_queue = eq_queue_new: %p\n", __func__, __LINE__, cm_context->peer_cm_queue);
 	eq_set_name(cm_context->peer_cm_queue, "peer_cm_queue");
 
 	//ARPM: undo hardcoded init...
@@ -113,6 +118,7 @@ cmContext* connection_manager_new(void)
 	cm_context->performance_analysis = false;
 	hw_manager_set_queues(cm_context->hm_context, cm_context->hm_cm_queue, cm_context->cm_hm_queue); //set the hw manager's queues
 	connection_manager_init_slave_cid_pool(cm_context);
+	corrib_syslog(LOG_DEBUG,"%s: end\n",__func__);
 	return cm_context;
 peer_cm_queue_no_mem:
 	eq_queue_free(cm_context->peer_cm_queue, __func__);
@@ -197,6 +203,29 @@ static BOOL connection_manager_get_fds(cmContext * cm_context, void** rfds, int*
 	return true;
 }
 
+int connect_manager_get_peer_list_size(cmContext * cm_context)
+{
+    peerNode * node_iterator;
+    int count = 0;
+    LIST_FOREACH(node_iterator, &(cm_context->peer_list_head), entries)
+    {
+    	count++;
+    } //there is an easier way of doing this using sizeof, but for another day
+    return count;
+}
+
+static void connection_manager_set_connecting_client(cmContext * cm_context, freerdp_peer * client, const char * caller)
+{
+	if (cm_context->connecting_client)
+    {
+		corrib_syslog(LOG_DEBUG, "CM:%s->%s: client %s already connecting, failed to set new connecting client %s\n",
+			      caller, __func__, cm_context->connecting_client->hostname, client->hostname);
+		return;
+	}
+
+	cm_context->connecting_client = client;
+}
+
 static void connection_manager_handle_new_client_request(cmContext* cm_context, int client_socket_fd, const char* hostname)
 {
     #ifdef SHARED_MODE_DEBUG
@@ -204,7 +233,7 @@ static void connection_manager_handle_new_client_request(cmContext* cm_context, 
     #endif
 	freerdp_peer* client;
 	bbPeerContext *bbPContext;
-	// int current_peers = connect_manager_get_peer_list_size(cm_context);
+	int current_peers = connect_manager_get_peer_list_size(cm_context);
 
 #ifdef CONNECTION_PROFILING
 	char command[255];
@@ -235,14 +264,20 @@ static void connection_manager_handle_new_client_request(cmContext* cm_context, 
 
 	bbPContext->connection_id = cm_context->client_id_counter++;
 
-#ifdef DEBUG_ENABLED
-	corrib_syslog(LOG_DEBUG,"CM:%s:operating mode is %d, current_peers=%d\n",  __func__,cm_context->cm_operating_mode,current_peers);
-#endif
+	corrib_syslog(LOG_DEBUG, "CM: %s:operating mode is %d, current_peers=%d\n", __func__, cm_context->cm_operating_mode, current_peers);
+
 	bbPContext->peer_type = PRIMARY_PEER;
+
+	corrib_syslog(LOG_DEBUG, "PeerAccepted callback before\n");
+
+	if (!cm_context->PeerAccepted) {
+		corrib_syslog(LOG_DEBUG, "PeerAccepted callback is NULL\n");
+	}
 
 	//this call causes all of the subsequent client initialisation including creation of the server_peer context
 	IFCALL(cm_context->PeerAccepted, cm_context, client); 
 
+	corrib_syslog(LOG_DEBUG, "PeerAccepted callback after\n");
 	strncpy(client->hostname, hostname, 50);
 
 	cm_context->hm_context->signal_new_connection = true;
@@ -252,9 +287,9 @@ static void connection_manager_handle_new_client_request(cmContext* cm_context, 
 	strncpy(bbPContext->connection_hostname, hostname, 255);
 	strncpy(bbPContext->connection_username, "demo", 255);
 
-	// connection_manager_set_connecting_client(cm_context, client, __func__);
+	connection_manager_set_connecting_client(cm_context, client, __func__);
 
-	// bbPContext->connection_start_time = sh_log_get_mstime();
+	bbPContext->connection_start_time = sh_log_get_mstime();
 
 
 
