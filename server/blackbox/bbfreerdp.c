@@ -1104,11 +1104,11 @@ static DWORD WINAPI bb_peer_mainloop(LPVOID arg)
 	// struct server_info* info = client->ContextExtra;
 	// WINPR_ASSERT(info);
 
-	if (!test_peer_init(client))
-	{
-		freerdp_peer_free(client);
-		return 0;
-	}
+	// if (!test_peer_init(client))
+	// {
+	// 	freerdp_peer_free(client);
+	// 	return 0;
+	// }
 
 	/* Initialize the real server settings here */
 	WINPR_ASSERT(client->context);

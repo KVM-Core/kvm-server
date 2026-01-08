@@ -161,7 +161,6 @@ static BOOL connection_manager_get_fds(cmContext * cm_context, void** rfds, int*
 	// }
 	// else
 	// {
-
 	// 	rfds[*rcount] = (void*)(long)(fd_hm_cm);
 	// 	(*rcount)++;
 	// }
@@ -364,9 +363,10 @@ static void* connection_manager_main_loop(void * arg)
 		}
 
 
-		//corrib_syslog(LOG_DEBUG,"CM_BS\n");
-		num_set = select(max_fds + 1, &rfds_set, NULL, &efds_set, &tv);
-		//corrib_syslog(LOG_DEBUG,"CM_AS\n");
+		corrib_syslog(LOG_DEBUG,"CM_BS\n");
+		// num_set = select(max_fds + 1, &rfds_set, NULL, &efds_set, &tv);
+		num_set = select(max_fds + 1, &rfds_set, NULL, &efds_set, NULL);
+		corrib_syslog(LOG_DEBUG,"CM_AS\n");
 		if(num_set == -1)
 		{
 			/* these are not really errors */
@@ -408,17 +408,22 @@ static void* connection_manager_main_loop(void * arg)
 						break;
 					case EQ_EVENT_NEW_CONNECTION:
 						new_connection_event = (EventNewConnection *)event;
-						if (cm_context->connecting_client)
-						{
-							peerWaitNode * node = xmalloc(sizeof(peerWaitNode), __func__);      /* Insert at the head. */
-							strcpy(node->hostname, new_connection_event->hostname);
-							node->fd = new_connection_event->peer_sockfd;
-							TAILQ_INSERT_TAIL(&(cm_context->peer_wait_queue_head), node, entries);
-							corrib_syslog(LOG_INFO,"CM: %s(): Deferring a new connection event for client: %s (%d).\n",  __func__,
-									new_connection_event->hostname,
-									new_connection_event->peer_sockfd);
-						}
-						else
+
+						corrib_syslog(LOG_INFO,"%s: CM: EQ_EVENT_NEW_CONNECTION cm_context->connecting_client: %p\n",
+																										__func__,
+																					cm_context->connecting_client);
+
+						// if (cm_context->connecting_client)
+						// {
+						// 	peerWaitNode * node = xmalloc(sizeof(peerWaitNode), __func__);      /* Insert at the head. */
+						// 	strcpy(node->hostname, new_connection_event->hostname);
+						// 	node->fd = new_connection_event->peer_sockfd;
+						// 	TAILQ_INSERT_TAIL(&(cm_context->peer_wait_queue_head), node, entries);
+						// 	corrib_syslog(LOG_INFO,"CM: %s(): Deferring a new connection event for client: %s (%d).\n",  __func__,
+						// 			new_connection_event->hostname,
+						// 			new_connection_event->peer_sockfd);
+						// }
+						// else
 						{
 							corrib_syslog(LOG_INFO,"CM:%s: Processing a new connection event for client:%s (%d).\n",
 									__func__,
@@ -493,7 +498,7 @@ void connection_manager_run(cmContext * cm_context)
 	if(freerdp_check_file_exists("/usr/local/FPGA_RESET_TEST"))
 	{
 		corrib_syslog(LOG_DEBUG, "Entering FPGA reset test mode\n");
-		// hw_manager_test_fpga_reset(cm_context->hm_context);
+		// ARPM Uncomment? hw_manager_test_fpga_reset(cm_context->hm_context);
 	}
 	else
 		hw_manager_run(cm_context->hm_context); //start the hardware manager

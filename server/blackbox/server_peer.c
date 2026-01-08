@@ -33,6 +33,26 @@
 #include <net/ethernet.h>
 #include <textfields.h>
 
+
+
+#include <freerdp/channels/wtsvc.h>
+#include <freerdp/channels/channels.h>
+#include <freerdp/channels/drdynvc.h>
+
+#include <winpr/winpr.h>
+#include <winpr/crt.h>
+#include <winpr/cast.h>
+#include <winpr/assert.h>
+#include <winpr/ssl.h>
+#include <winpr/synch.h>
+#include <winpr/file.h>
+#include <winpr/string.h>
+#include <winpr/path.h>
+#include <winpr/image.h>
+#include <winpr/winsock.h>
+
+#include "bb_peer.h"
+
 #if 0
 static void * server_peer_monitor_loop(void * arg)
 {
@@ -579,6 +599,9 @@ BOOL server_peer_context_new(freerdp_peer* client, serverPeerContext* peer_conte
 	}
 
 	// pthread_mutex_init(&peer_context->rdpsnd_mutex, NULL);
+
+	test_peer_context_new(client, peer_context);
+
 	corrib_syslog(LOG_DEBUG, "%s(): end\n", __func__);
 	return TRUE;
 }
@@ -638,6 +661,9 @@ void server_peer_context_free(freerdp_peer* client, serverPeerContext* context)
 		}
 	}
 #endif
+
+	test_peer_context_free(client, context);
+
 }
 
 static BOOL server_peer_post_connect(freerdp_peer* client)
@@ -1029,22 +1055,23 @@ static void server_peer_set_specific_thread_priority(pthread_t thread_id, int ne
 
 void server_peer_get_timeout_interval(freerdp_peer* client, struct timeval* tv)
 {
-	if(client != NULL && tv != NULL)
-	{
-		time_t now = time(NULL);
+	// ARPM Uncomment
+	// if(client != NULL && tv != NULL)
+	// {
+	// 	time_t now = time(NULL);
 
-		if(client->context->settings->interval_time > now && client->context->settings->expiration_time > now )
-		{
-			tv->tv_sec = client->context->settings->expiration_time <= client->context->settings->interval_time ?
-						 client->context->settings->expiration_time - now: client->context->settings->interval_time - now;
-			tv->tv_usec = 0;
-		}
-		else
-		{
-			memset(tv, 0x00, sizeof(struct timeval));
-		}
+	// 	if(client->context->settings->interval_time > now && client->context->settings->expiration_time > now )
+	// 	{
+	// 		tv->tv_sec = client->context->settings->expiration_time <= client->context->settings->interval_time ?
+	// 					 client->context->settings->expiration_time - now: client->context->settings->interval_time - now;
+	// 		tv->tv_usec = 0;
+	// 	}
+	// 	else
+	// 	{
+	// 		memset(tv, 0x00, sizeof(struct timeval));
+	// 	}
 
-	}
+	// }
 }
 
 /*
@@ -1465,16 +1492,17 @@ static void * server_peer_main_loop(void * arg)
 			// 	}
 			// }
 		}
+		// ARPM Uncomment
+		// if ((tv.tv_sec == 0) && (tv.tv_usec == 0))
+		// {
+		// 	client->context->settings->interval_time = time(NULL) + DEFAULT_INTERVAL_PERIOD;
 
-		if ((tv.tv_sec == 0) && (tv.tv_usec == 0))
-		{
-			client->context->settings->interval_time = time(NULL) + DEFAULT_INTERVAL_PERIOD;
+		// 	/* Send a new keepalive message periodically to the remote peer to
+		// 	 * let them know we're still connected. */
 
-			/* Send a new keepalive message periodically to the remote peer to
-			 * let them know we're still connected. */
-			if (client->activated)
-				peer_send_cloudium_pdu(client);
-		}
+		// 	// Uncomment if (client->activated)
+		// 	// 	peer_send_cloudium_pdu(client);
+		// }
 	} //end of while loop
 	corrib_syslog(LOG_DEBUG, "%s(): end\n", __func__);
 exit:
@@ -1580,6 +1608,7 @@ static void server_peer_run(serverPeerContext* server_peer_context)
 
 void server_peer_init(freerdp_peer* client, cmContext* cm_context)
 {
+	HANDLE hThread = NULL;
 	bbPeerContext* bb_peer_context;
 	corrib_syslog(LOG_DEBUG, "%s(): begin\n", __func__, __LINE__);
 	bb_peer_context = (bbPeerContext* )client->ContextExtra;
@@ -1732,7 +1761,14 @@ void server_peer_init(freerdp_peer* client, cmContext* cm_context)
     eq_set_name(sp_context->sp_mon_queue,"sp_mon_queue");
 	corrib_syslog(LOG_DEBUG, "%s(): at %d\n", __func__, __LINE__);
 	server_peer_run(sp_context);
+
+	if (!(hThread = CreateThread(NULL, 0, bb_peer_loop, (void*)client, 0, NULL)))
+	{
+		return;
+	}
+
 	corrib_syslog(LOG_DEBUG, "%s(): end\n", __func__, __LINE__);
+
 fail:
 }
 

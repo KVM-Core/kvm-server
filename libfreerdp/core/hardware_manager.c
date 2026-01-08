@@ -256,9 +256,10 @@ BOOL hw_manager_open_krdm(hwManagerContext* context)
 	int flags;
 
 	status = true;
-
+corrib_syslog(LOG_DEBUG, "%s: begin\n", __func__);
 	if (context->krdm_fd != -1) //if its already open just return
 	{
+		corrib_syslog(LOG_DEBUG, "%s: already open\n", __func__);
 		return status;
 	}
 
@@ -274,7 +275,9 @@ BOOL hw_manager_open_krdm(hwManagerContext* context)
 	{
 		flags = fcntl(context->krdm_fd, F_GETFL, 0);
 		fcntl(context->krdm_fd, F_SETFL, flags | O_NONBLOCK);
+		corrib_syslog(LOG_DEBUG, "%s: OK\n", __func__);
 	}
+	corrib_syslog(LOG_DEBUG, "%s: end\n", __func__);
     return status;
 
 }
@@ -286,7 +289,7 @@ BOOL hw_manager_initialise_fpga(hwManagerContext * context, int head, int pass)
 {
 	//TODO replace this print with something more sensible
 	//corrib_syslog(LOG_INFO,"%s: This has resolution changes disabled and is only using super sync detect signal\n",__func__);
-
+	corrib_syslog(LOG_DEBUG, "%s: begin\n", __func__);
 	context->head_detected[head] = capture_layer_detect_sync(context->capture_context, head);
 	
 	if(context->head_detected[head])
@@ -297,11 +300,12 @@ BOOL hw_manager_initialise_fpga(hwManagerContext * context, int head, int pass)
 
 	if(hw_manager_open_krdm(context))
 	{
+		corrib_syslog(LOG_DEBUG, "%s: hw_manager_fpga_signal_new_connection()\n", __func__);
 		hw_manager_fpga_signal_new_connection(context, head);
 	}
 
 	capture_layer_set_yuv_interrupt_reg(context->capture_context, head);
-
+	corrib_syslog(LOG_DEBUG, "%s: end\n", __func__);
 	return true;
 }
 
@@ -463,7 +467,7 @@ void* hw_manager_main_loop(void * arg)
 	fd_set rfds_set;
 	memset(rfds, 0, sizeof(rfds));
 	//virtualDevice* virtual_device;
-
+	corrib_syslog(LOG_DEBUG,"HM main loop begin\n");
 	struct timeval tv = {.tv_sec = HW_DEFAULT_INTERVAL_PERIOD, .tv_usec = 0}; //
 	context->main_thread_state = RUNNING;
 	assert(context->cm_hm_queue);
@@ -610,10 +614,9 @@ void* hw_manager_main_loop(void * arg)
 				{
 
 					known_event = true;
-					//corrib_syslog(LOG_DEBUG,"Got a krdm event\n");
+					corrib_syslog(LOG_DEBUG,"Got a krdm event\n");
 					if(context->signal_new_connection)
 					{
-						//rfx_reset_frame_index(ep_context->vp_context->rfx_context);
 						context->signal_new_connection = false;
 					}
 					ep_process_krdm_event(ep_context, context);
@@ -652,6 +655,7 @@ void* hw_manager_main_loop(void * arg)
 		}
 		//corrib_syslog(LOG_DEBUG,"4.0:Time check at %u\n",sh_log_get_mstime());
 	} //end of while loop
+	corrib_syslog(LOG_DEBUG,"HM main loop end\n");
 	//ep_free(ep_context, context); //FIXME, causes double free
 	pthread_exit(NULL);
 

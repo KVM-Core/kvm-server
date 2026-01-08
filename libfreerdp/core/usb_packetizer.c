@@ -3,7 +3,6 @@
  * Copyright: Cloudium Systems 2015
  */
 #include "usb_packetizer.h"
-#include "packetizer_debug.h"
 #include <freerdp/hardware_manager.h>
 #include <freerdp/server/rdpeusb.h>
 

@@ -29,6 +29,8 @@ set(SRCS
     bb_encomsp.h
     server_peer.c
     server_peer.h
+    bb_peer.c
+    bb_peer.h
 )
 
 find_library(LOGGING_LIBRARY logging REQUIRED)

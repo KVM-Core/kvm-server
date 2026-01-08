@@ -88,6 +88,38 @@ struct server_peer_context
 
 
 	pthread_mutex_t rdpsnd_mutex;
+
+
+
+	// sfreerdp begin
+	RFX_CONTEXT* rfx_context;
+	NSC_CONTEXT* nsc_context;
+	wStream* s;
+	BYTE* bg_data;
+	UINT32 icon_x;
+	UINT32 icon_y;
+	BOOL _activated;
+	HANDLE event;
+	HANDLE stopEvent;
+	HANDLE vcm;
+	void* debug_channel;
+	HANDLE debug_channel_thread;
+#if defined(CHANNEL_AUDIN_SERVER)
+	audin_server_context* audin;
+#endif
+	BOOL audin_open;
+#if defined(CHANNEL_AINPUT_SERVER)
+	ainput_server_context* ainput;
+	BOOL ainput_open;
+#endif
+	UINT32 frame_id;
+	// RdpsndServerContext* rdpsnd;
+	// EncomspServerContext* encomsp;
+
+	rdpTransportIo io;
+	wImage* image;
+	// sfreerdp end
+
 };
 
 void server_peer_accepted(cmContext* cm_context, freerdp_peer* client);
