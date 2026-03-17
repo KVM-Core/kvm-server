@@ -2012,6 +2012,7 @@ void hardware_manager_init_capture_subsystem(hwManagerContext * hw_context, int 
 		hw_manager_init_capture_subsystem_for_compression(hw_context, head, OPTIMISED);
 	}
 }
+#endif
 
 void hardware_manager_start_capture_subsystem(hwManagerContext * hw_context, int head, COMPRESSION_MODE cm_compression_mode)
 {
@@ -2026,6 +2027,7 @@ void hardware_manager_start_capture_subsystem(hwManagerContext * hw_context, int
 	}
 }
 
+#if 0
 //note: https://bboxjira.atlassian.net/browse/BUG-3585 specifies work to be done to ensure that all hm_cm_queue events 
 //      are freed where appropriate. The function below (hw_manager_cleanup) may change depending on the solution for BUG-3585
 void hw_manager_cleanup(hwManagerContext * context)

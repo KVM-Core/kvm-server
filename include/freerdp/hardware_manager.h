@@ -305,7 +305,7 @@ BOOL hw_manager_initialise_fpga(hwManagerContext * context,int head,int pass);
 // void hw_manager_analogaudio_stats(hwManagerContext *hw_context);
 // void hardware_manager_enable_all_tiles_mode(hwManagerContext *hw_context, COMPRESSION_MODE compression_mode);
 void hardware_manager_init_capture_subsystem(hwManagerContext *hw_context, int head, COMPRESSION_MODE cm_compression_mode);
-// void hardware_manager_start_capture_subsystem(hwManagerContext *hw_context, int head, COMPRESSION_MODE cm_compression_mode);
+void hardware_manager_start_capture_subsystem(hwManagerContext *hw_context, int head, COMPRESSION_MODE cm_compression_mode);
 void hardware_manager_stop_capture_subsystem(hwManagerContext *hw_context, int head, COMPRESSION_MODE cm_compression_mode);
 // void hw_manager_video_stats(hwManagerContext *context, const UINT32 optimised_peers, const UINT32 lossless_peers);
 

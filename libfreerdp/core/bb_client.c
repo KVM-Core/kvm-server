@@ -1019,6 +1019,7 @@ int client_master_start(cmContext * cm_context, freerdp_peer* client)
 	{
 		/* NOTE: hardware_manager_start_capture_subsystem() not available in this build.
 		 * If needed, add it to hardware_manager.h and hardware_manager.c. */
+		hardware_manager_start_capture_subsystem(cm_context->hm_context, FIRST_HEAD, LOSSLESS);
 		capture_layer_start_capture(capture_context, FIRST_HEAD, LOSSLESS);
 	}
 	else
