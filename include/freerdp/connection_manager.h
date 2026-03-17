@@ -181,6 +181,7 @@ cmContext *  connection_manager_new(void);
 void connection_manager_free(cmContext * cm_context);
 void connection_manager_set_queues(cmContext * cm_context,eqEventQueue* listner_queue);
 void connection_manager_run(cmContext * cm_context);
+void connection_manager_set_server_mode(cmContext * cm_context, freerdp_peer * client);
 #if 0
 
 #include <sys/socket.h>

@@ -54,6 +54,7 @@ enum cm_av_channel_state {
 };
 
 static void connection_manager_init_slave_cid_pool(cmContext * cm_context);
+static void connection_manager_handle_connection_info(cmContext * cm_context, EventConnectionInfo * client_connection_info);
 
 cmContext* connection_manager_new(void)
 {
@@ -328,7 +329,7 @@ static void* connection_manager_main_loop(void * arg)
 		//corrib_syslog(LOG_DEBUG,"%s:[CM_ML]",__func__);
 		int listner_fd = eq_get_queue_fd(cm_context->listener_queue);
 		// int hm_cm_fd = eq_get_queue_fd(cm_context->hm_cm_queue);
-		// int peer_cm_fd = eq_get_queue_fd(cm_context->peer_cm_queue);
+		int peer_cm_fd = eq_get_queue_fd(cm_context->peer_cm_queue);
 		// connection_manager_get_timeout_interval(cm_context, &tv);
 
 		if(connection_manager_get_fds(cm_context, rfds, &rcount) != true)
@@ -389,6 +390,126 @@ static void* connection_manager_main_loop(void * arg)
 		{
 			BOOL known_event = false;
 			EventNewConnection * new_connection_event;
+
+			if (FD_ISSET(peer_cm_fd, &rfds_set)) //or if
+			{
+				known_event = true;
+                #ifdef VERBOSE_DEBUGGING
+					corrib_syslog(LOG_DEBUG,"CM:%s: checking for events from the peer.\n",  __func__);
+				#endif
+				//read the queue
+				eqEvent* event = eq_pop(cm_context->peer_cm_queue);
+
+				if(event)
+				{
+					switch(event->type)
+					{
+// 					case EQ_EVENT_CLIENT_SIDE_READY: //There is redundancy between this and the next event, we should remove one
+// 					{
+// 						EventClientReady * client_ready_event =  (EventClientReady *)event;
+// 						hardware_manager_enable_all_tiles_mode(cm_context->hm_context, cm_context->cm_compression_mode);
+// 						//the client is ready turn back on video
+// 						if(cm_context->debug_enabled)
+// 						{
+// 							corrib_syslog(LOG_DEBUG,"CM:%s: client %d side ready.\n",  __func__,client_ready_event->client_id);
+// 						}
+// 						connection_manager_handle_keyboard_output_report(cm_context,cm_context->hm_context->outputReportBitmask);
+// 						connection_manager_handle_client_ready(cm_context, client_ready_event->client_id,
+// 								client_ready_event->connection_type, client_ready_event->preemption_requested,
+// 								client_ready_event->domain_key, client_ready_event->session_id,client_ready_event->loggedin_user);
+// 						//su_show_domain_key(client_ready_event->domain_key, __func__);
+// 						eq_push(cm_context->cm_hm_queue,event);
+// 						//Event will be freed in the Hardware Manager
+// 						break;
+// 					}
+// 					case EQ_EVENT_RES_CHANGE_COMPLETE:
+// 					{
+// 						EventResChangeComplete * client_res_change_complete =  (EventResChangeComplete *)event;
+// 						int hw_head_id = (client_res_change_complete->head == 1) ? HEAD_ONE : HEAD_TWO;
+// 						//corrib_syslog(LOG_DEBUG,"%s: Client %d Resolution Change Complete.\n",  __func__,client_ready_event->client_id);
+// 						//the client is ready turn back on video
+// 						//if(cm_context->debug_enabled)
+// 						corrib_syslog(LOG_INFO,"%s: Client %d Resolution Change Complete.\n",  __func__,client_res_change_complete->client_id);
+// 						//Now update the hardware manager to un-suspend the video, this may already have been unsuspended during a resize exchange
+// 						connection_manager_handle_keyboard_output_report(cm_context,cm_context->hm_context->outputReportBitmask);
+// 						if(connection_manager_handle_res_change_complete(cm_context,client_res_change_complete->client_id, client_res_change_complete->head))
+// 						{
+// 							hardware_manager_start_capture_subsystem(cm_context->hm_context, client_res_change_complete->head-1, cm_context->cm_compression_mode);
+// 						}
+// 						hw_manager_set_media_suspend_state(cm_context->hm_context, hw_head_id, false);
+// 						eq_event_free(event); //we need to free the event as it is travelling no further
+// 						break;
+// 					}
+// // 
+					case EQ_EVENT_CONNECTION_INFO:
+					{
+						EventConnectionInfo * client_connection_info =  (EventConnectionInfo *)event;
+						corrib_syslog(LOG_INFO,"%s: Client %d connection info.\n",  __func__,client_connection_info->client_id);
+						// connection_manager_handle_keyboard_output_report(cm_context,cm_context->hm_context->outputReportBitmask);
+						connection_manager_handle_connection_info(cm_context,client_connection_info);
+						eq_event_free(event); //we need to free the event as it is travelling no further
+						break;
+					}
+					// case EQ_EVENT_SERVER_PEER_READY:
+					// {
+					// 	EventServerPeerReady * server_peer_ready_event =  (EventServerPeerReady *)event;
+					// 	boolean accepted;
+					// 	//the client is ready turn back on video
+					// 	if(cm_context->debug_enabled)
+					// 	{
+					// 		corrib_syslog(LOG_DEBUG,"%s: Server Peer ready.\n",  __func__);
+					// 	}
+					// 	accepted = connection_manager_handle_server_peer_ready(cm_context,server_peer_ready_event->client);
+					// 	if (accepted)
+					// 	{
+					// 		hardware_manager_enable_all_tiles_mode(cm_context->hm_context, cm_context->cm_compression_mode);
+					// 	}
+					// 	eq_event_free(event); //we need to free the event as it is travelling no further
+					// 	break;
+					// }
+					// case EQ_EVENT_CHANNEL_READY:
+					// {
+					// 	EventChannelReady* channel_ready_event = (EventChannelReady*)event;
+					// 	if(cm_context->debug_enabled)
+					// 		corrib_syslog(LOG_DEBUG,"CM:%s: Audio Channel Ready.\n",  __func__);
+					// 	if (strncmp(channel_ready_event->channel->name, "rdpsnd", 6) == 0)
+					// 	{
+					// 		hw_manager_set_media_suspend_state(cm_context->hm_context,AUDIO,false); //FIXME, what about second head
+					// 	}
+					// 	eq_event_free(event); //we need to free the event as it is travelling no further
+					// 	break;
+					// }
+					// case EQ_EVENT_USB_COMMAND_AVAILABLE:
+					// {
+					// 	eq_push(cm_context->cm_hm_queue,event);
+					// 	break;
+					// }
+					// case EQ_EVENT_PEER_TERMINATED:  //a peer has left the building
+					// {
+					// 	//we need to clean up remove the peer from any active lists
+					// 	//and if necessary remove the peer from any multicast transport level lists
+					// 	EventPeerTerminated * peer_terminated_event = (EventPeerTerminated *)event;
+					// 	connection_manager_handle_peer_termination(cm_context, peer_terminated_event->peer_id);
+					// 	eq_event_free(event); //we need to free the event as it is travelling no further
+					// 	break;
+					// }
+
+					default:
+						corrib_syslog(LOG_ERR,"CM:%s: got an unknown event type from peer:%d.\n",  __func__,event->type);
+						break;
+					}
+					//Note: we do not free the event here as it is being forwarded to the hardware manager
+					//this may not be the case for other events
+
+
+					//FIXME, ensure we free other events
+				}
+                               #ifdef VERBOSE_DEBUGGING
+                               corrib_syslog(LOG_DEBUG,"CM:%s: checked for events from the peer.\n",  __func__);
+                               #endif
+			}
+
+
 
 			if (FD_ISSET(listner_fd, &rfds_set)) //need to figure out which queue has fired
 			{
@@ -540,6 +661,179 @@ void connection_manager_free(cmContext * cm_context)
 	pthread_mutex_destroy(&(cm_context->mutex));
 	xfree(cm_context,__func__);
 	corrib_syslog(LOG_DEBUG, "CM:Connection Manager has ended\n");
+}
+
+static freerdp_peer * connection_manager_get_peer_for_fd(cmContext * cm_context,int fd);
+static bool connection_manager_channel_is_listening(cmContext * cm_context, av_mode mode, int channel);
+
+//This occurs on both a new connection and on a sync loss and res change
+static void connection_manager_handle_connection_info(cmContext * cm_context, EventConnectionInfo * client_connection_info)
+{
+	corrib_syslog_bs (LOG_INFO,"cm_connection_info");
+
+	if (!client_connection_info || !cm_context)
+	{
+		corrib_syslog(LOG_ERR, "%s(): NULL pointer as parameter\n", __func__);
+		return;
+	}
+
+	int connection_type = client_connection_info->connection_type;
+	int client_socket_fd = client_connection_info->client_id;
+	freerdp_peer * client = connection_manager_get_peer_for_fd(cm_context, client_socket_fd);
+	bbPeerContext* bb_peer_context = (bbPeerContext* )client->ContextExtra;
+
+#ifdef TRACE_NEGOTIATION
+	connection_manager_show_connection_details(cm_context,client, __func__,"start");
+#endif
+
+	char *hostname = bb_peer_context->connection_hostname;
+	int current_peers = connect_manager_get_peer_list_size(cm_context);
+	bool extended_desktop = false;// (client->context->rdp->settings->num_monitors == 2);
+
+	if (bb_peer_context->connection_state != PEER_CONNECTION_STATE_ACCEPTED)
+	{
+		corrib_syslog(LOG_ERR, "%s: Invalid connection_state %d [Expected: PEER_CONNECTION_STATE_ACCEPTED] for peer %s\n",
+			      __func__, bb_peer_context->connection_state, client->hostname);
+		// connection_manager_terminate_peer(client);
+		return;
+	}
+
+	if (!MODE_CHECK(connection_type, MULTICAST_MODE))
+	{
+		if (connection_manager_channel_is_listening(cm_context, VIDEO_MODE, bb_peer_context->video_channel))
+		{
+			if (!cm_context->video_municast_running)
+			{
+				/* First Video connection */
+				if (!client_start_encoder_video(client, cm_context, false, extended_desktop, __func__))
+				{
+					corrib_syslog(LOG_ERR, "%s:Failed to start EncoderStart Peer:%s\n",__func__, hostname);
+					// connection_manager_terminate_peer(client);
+					return;
+				}
+			}
+			else
+			{
+				// /* Shared Municast Video Connection */
+				// if (!client_start_encoder_video_mu(client, cm_context, false, extended_desktop, __func__)) {
+				// 	corrib_syslog(LOG_ERR, "%s:Failed to start EncoderStart MU Peer:%s\n",__func__, hostname);
+				// 	connection_manager_terminate_peer(client);
+				// 	return;
+				// }
+			}
+			connection_manager_channel_set_active(cm_context, VIDEO_MODE, bb_peer_context->video_channel);
+			bb_peer_context->video_state[HEAD_1] = PEER_VIDEO_STATE_ACTIVE;
+			if (extended_desktop) bb_peer_context->video_state[HEAD_2] = PEER_VIDEO_STATE_ACTIVE;
+		}
+		else
+		{
+			/*
+			 * Video channel may not be in listening state if sync-loss was present when connection accepted.
+			 * If a res-change occurred since then, it will be handled by deferred sync-loss/res-change
+			 * processing after the connection has been established.
+			 */
+			corrib_syslog(LOG_INFO, "%s: Not starting video channel %d in state %d for client %s\n",
+				      __func__, bb_peer_context->video_channel, cm_context->video_channels[bb_peer_context->video_channel], client->hostname);
+		}
+
+		// if (bb_peer_context->settings->AnalogAudio)
+		// {
+		// 	if (connection_manager_channel_is_listening(cm_context, AUDIO_MODE, bb_peer_context->audio_channel))
+		// 	{
+		// 		if (!cm_context->audio_municast_running)
+		// 		{
+		// 			/* First Audio connection */
+		// 			if (!client_start_encoder_audio(client, cm_context, (MODE_CHECK(connection_type, MUNICAST_MODE )) ? true : false, __func__))
+		// 			{
+		// 				corrib_syslog(LOG_ERR, "%s:Failed to start EncoderStart Peer:%s\n",__func__, hostname);
+		// 				connection_manager_terminate_peer(client);
+		// 				return;
+		// 			}
+		// 		}
+		// 		else
+		// 		{
+		// 			/* Shared Municast Audio connection */
+		// 			if (!client_start_encoder_audio_mu(client, __func__))
+		// 			{
+		// 				corrib_syslog(LOG_ERR, "%s:Failed to start AudioStart Peer:%s\n",__func__, hostname);
+		// 				connection_manager_terminate_peer(client);
+		// 				return;
+		// 			}
+		// 		}
+		// 		connection_manager_channel_set_active(cm_context, AUDIO_MODE, bb_peer_context->audio_channel);
+		// 	}
+		// 	else
+		// 	{
+		// 		/* Audio channel may not be in listening state if not requested by client */
+        //         #ifdef DEBUG_ENABLED
+		// 		corrib_syslog(LOG_DEBUG, "%s: Not starting audio channel %d in state %d\n",
+		// 			      __func__, client->audio_channel, cm_context->audio_channels[client->audio_channel]);
+        //         #endif
+		// 	}
+		// }
+	}
+// 	else //multicast requested
+// 	{
+// 		/* Multicast Master Start */
+// 		if(cm_context->video_multicast_running == false)
+// 		{
+// 			/* Start video master */
+// 			if(client_master_start(cm_context, client))
+// 				corrib_syslog(LOG_INFO,"%s:Shared mode EncoderMasterStart Peer:%s\n",__func__, hostname);
+// 			else
+// 				corrib_syslog(LOG_ERR,"%s:Failed to start EncoderMasterStart Peer:%s\n",__func__, hostname);
+// 		}
+// 		else
+// 			corrib_syslog(LOG_INFO,"%s:EncoderMaster is already running in shared mode\n",__func__);
+
+// 		/* Multicast Slave Start */
+// 		if(client_slave_start_video(client))
+// 			corrib_syslog(LOG_INFO,"%s:Shared mode EncoderSlaveStartVideo Peer:%s\n",__func__,hostname);
+// 		else
+// 			corrib_syslog(LOG_ERR,"%s: Failed to start EncoderSlaveStartVideo Peer:%s\n",__func__,hostname);
+
+// 		/* Multicast Master resume */
+// 		if(client_master_resume_video(cm_context))
+// 			corrib_syslog(LOG_INFO,"%s:Shared mode EncoderMasterResume Peer:%s\n",__func__, hostname);
+// 		else
+// 			corrib_syslog(LOG_ERR,"%s:Failed to start EncoderMasterResume Peer:%s\n",__func__, hostname);
+
+// 		bb_peer_context->video_state[HEAD_1] = PEER_VIDEO_STATE_ACTIVE;
+
+// 		// if (bb_peer_context->settings->AnalogAudio) {
+// 		// 	if (cm_context->audio_multicast_running == false) {
+// 		// 		cm_context->audio_master_mu_channel = connection_manager_get_municast_channel(cm_context, AUDIO_MODE);
+// 		// 		/* Start audio master */
+// 		// 		client_audio_master_start(cm_context, client);
+// 		// 	}
+
+// 		// 	if(client_slave_start_audio(client))
+// 		// 		corrib_syslog(LOG_INFO,"%s:Shared mode EncoderSlaveStartAudio Peer:%s\n",__func__,hostname);
+// 		// 	else
+// 		// 		corrib_syslog(LOG_ERR,"%s: Failed to start EncoderSlaveStartAudio Peer:%s\n",__func__,hostname);
+
+// 		// 	client_master_resume_audio();
+// 		// }
+
+// #ifdef SHARED_MODE_DEBUG
+// 		connection_manager_show_slave_cid_pool(cm_context);
+// #endif
+
+// 	}
+
+	/* BUG-4525: In a certain race condition a leaving connection could reset
+	 * the server mode while a new connection is still initializing. 
+	 * A this point we are sure that the new connection is matured and
+	 * we should set the compression mode here */
+	connection_manager_set_server_mode(cm_context, client);
+
+	bb_peer_context->connection_state = PEER_CONNECTION_STATE_STARTING;
+	corrib_syslog(LOG_INFO, "%s: Setting connection_state=%d (STARTING) for client %s\n",
+		      __func__, bb_peer_context->connection_state, client->hostname);
+
+	corrib_syslog_es (LOG_INFO,"cm_connection_info");
+
+
 }
 
 #if 0
@@ -1169,8 +1463,8 @@ static boolean connection_manager_channel_is_allocated(cmContext * cm_context, a
 		(cm_context->video_channels[channel] == CM_AV_CHANNEL_ALLOCATED) :
 		(cm_context->audio_channels[channel] == CM_AV_CHANNEL_ALLOCATED);
 }
-
-static boolean connection_manager_channel_is_listening(cmContext * cm_context, av_mode mode, int channel)
+#endif
+static bool connection_manager_channel_is_listening(cmContext * cm_context, av_mode mode, int channel)
 {
 	if (channel < 0 || channel >= MAX_SHARED_CONNECTIONS)
 		return false;
@@ -1179,7 +1473,7 @@ static boolean connection_manager_channel_is_listening(cmContext * cm_context, a
 		(cm_context->video_channels[channel] == CM_AV_CHANNEL_LISTENING) :
 		(cm_context->audio_channels[channel] == CM_AV_CHANNEL_LISTENING);
 }
-
+#if 0
 static boolean connection_manager_channel_is_active(cmContext * cm_context, av_mode mode, int channel)
 {
 	if (channel < 0 || channel >= MAX_SHARED_CONNECTIONS)
@@ -1217,14 +1511,18 @@ static int connection_manager_active_municast_channels(cmContext * cm_context, a
 
 	return active_channels;
 }
-
+#endif
 void connection_manager_set_server_mode(cmContext * cm_context, freerdp_peer * client)
 {
-	cm_context->cm_compression_mode |= client->compression_mode;
-	cm_context->cm_operating_mode |= client->connection_mode;
+	bbPeerContext *bb_peer_context;
+
+	bb_peer_context = (bbPeerContext*)client->ContextExtra;
+
+	cm_context->cm_compression_mode |= bb_peer_context->compression_mode;
+	cm_context->cm_operating_mode |= bb_peer_context->connection_mode;
 	cm_context->hm_context->configured_compression = cm_context->cm_compression_mode;
 }
-
+#if 0
 static const char * cm_get_peer_video_state_string(const rdp_peer_video_state video_state)
 {
 	switch (video_state) 
@@ -1616,7 +1914,7 @@ static int connection_manager_replenish_slave_cid_pool(cmContext * cm_context,fr
 	corrib_syslog_es (LOG_INFO,"cm_replenish_slave_pool");
 	return 0;
 }
-
+#endif
 void connection_manager_channel_set_active(cmContext *cm_context, av_mode mode, int index) {
 	if (mode == VIDEO_MODE) {
 		if (cm_context->video_channels[index] != CM_AV_CHANNEL_LISTENING)
@@ -1632,7 +1930,7 @@ void connection_manager_channel_set_active(cmContext *cm_context, av_mode mode, 
 			cm_context->audio_channels[index] = CM_AV_CHANNEL_ACTIVE;
 	}
 }
-
+#if 0
 void connection_manager_channel_set_listening(cmContext *cm_context, av_mode mode, int index) {
 	if (mode == VIDEO_MODE) {
 		if (cm_context->video_channels[index] != CM_AV_CHANNEL_ALLOCATED)
@@ -2311,7 +2609,7 @@ int connect_manager_get_peer_list_size_and_types(cmContext * cm_context, uint32_
 	} //there is an easier way of doing this using sizeof, but for another day
 	return count;
 }
-
+#endif
 //Given an fd, find the corresponding peer, return it or NULL if not found
 static freerdp_peer * connection_manager_get_peer_for_fd(cmContext * cm_context,int fd)
 {
@@ -2324,7 +2622,7 @@ static freerdp_peer * connection_manager_get_peer_for_fd(cmContext * cm_context,
     }
     return NULL;
 }
-
+#if 0
 static peerNode * connection_manager_find_client_node(cmContext * cm_context, freerdp_peer* client)
 {
     CM_PRINT_FUNC();
